@@ -123,7 +123,7 @@ public partial class DiffParser
     [GeneratedRegex(@"^\+.*(?:Console\.Write|Logger\.|_logger\.|log\.|logging\.|print\(|fmt\.Print|println!|slog\.|ILogger)", RegexOptions.Multiline)]
     private static partial Regex LoggingRegex();
 
-    [GeneratedRegex(@"^\+.*(?:\[Test\]|\[Fact\]|\[Theory\]|describe\(|it\(|test\(|def\s+test_|func\s+Test|#\[test\]|@Test|@pytest)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\+\s*(?:\[Test\]|\[Fact\]|\[Theory\]|\[TestMethod\]|describe\(['""]|(?:^|\s)it\(['""]|(?:^|\s)test\(['""]|def\s+test_|func\s+Test|#\[test\]|@Test\b|@pytest)", RegexOptions.Multiline)]
     private static partial Regex TestRegex();
 
     [GeneratedRegex(@"^\+.*(?:appsettings|\.env|config\.|\.config|environment\.|settings\.|\.properties|\.toml|\.ini)", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
