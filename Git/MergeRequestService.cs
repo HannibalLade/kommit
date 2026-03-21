@@ -85,13 +85,44 @@ public partial class MergeRequestService
 
         if (!response.IsSuccessStatusCode)
         {
-            PrintApiError("GitHub", response, await response.Content.ReadAsStringAsync());
+            var errorBody = await response.Content.ReadAsStringAsync();
+
+            // GitHub returns 422 when a PR already exists
+            if ((int)response.StatusCode == 422)
+            {
+                var existingUrl = await FindExistingGitHubPr(client, remote, sourceBranch);
+                if (existingUrl is not null)
+                {
+                    Console.WriteLine("A pull request already exists for this branch:");
+                    return existingUrl;
+                }
+            }
+
+            PrintApiError("GitHub", response, errorBody);
             return null;
         }
 
         var json = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(json);
         return doc.RootElement.GetProperty("html_url").GetString();
+    }
+
+    private static async Task<string?> FindExistingGitHubPr(HttpClient client, RemoteInfo remote, string sourceBranch)
+    {
+        try
+        {
+            var response = await client.GetAsync(
+                $"https://api.github.com/repos/{remote.ProjectPath}/pulls?head={sourceBranch}&state=open");
+            if (!response.IsSuccessStatusCode) return null;
+
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            var prs = doc.RootElement;
+            if (prs.GetArrayLength() > 0)
+                return prs[0].GetProperty("html_url").GetString();
+        }
+        catch { }
+        return null;
     }
 
     private async Task<string?> CreateGitLabMr(RemoteInfo remote, string sourceBranch, string targetBranch, string title)
@@ -116,13 +147,44 @@ public partial class MergeRequestService
 
         if (!response.IsSuccessStatusCode)
         {
-            PrintApiError("GitLab", response, await response.Content.ReadAsStringAsync());
+            var errorBody = await response.Content.ReadAsStringAsync();
+
+            // GitLab returns 409 when an MR already exists
+            if ((int)response.StatusCode == 409)
+            {
+                var existingUrl = await FindExistingGitLabMr(client, apiBase, projectId, sourceBranch);
+                if (existingUrl is not null)
+                {
+                    Console.WriteLine("A merge request already exists for this branch:");
+                    return existingUrl;
+                }
+            }
+
+            PrintApiError("GitLab", response, errorBody);
             return null;
         }
 
         var json = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(json);
         return doc.RootElement.GetProperty("web_url").GetString();
+    }
+
+    private static async Task<string?> FindExistingGitLabMr(HttpClient client, string apiBase, string projectId, string sourceBranch)
+    {
+        try
+        {
+            var response = await client.GetAsync(
+                $"{apiBase}/api/v4/projects/{projectId}/merge_requests?source_branch={sourceBranch}&state=opened");
+            if (!response.IsSuccessStatusCode) return null;
+
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            var mrs = doc.RootElement;
+            if (mrs.GetArrayLength() > 0)
+                return mrs[0].GetProperty("web_url").GetString();
+        }
+        catch { }
+        return null;
     }
 
     public static string GenerateTitle(string branchName)

@@ -42,9 +42,28 @@ kommit
 
 # Preview the commit message without committing
 kommit --dry-run
+
+# Preview commit message and staged files
+kommit status
 ```
 
 ## Commands
+
+### `kommit status`
+
+Preview the commit message that would be generated, along with the staged file list and line counts.
+
+```sh
+kommit status
+```
+
+### `kommit undo`
+
+Undo the last commit, keeping all changes staged so you can re-commit.
+
+```sh
+kommit undo
+```
 
 ### `kommit push`
 

@@ -213,6 +213,16 @@ public class GitService
             RunGit("push");
     }
 
+    public string GetLastCommitMessage()
+    {
+        return RunGit("log -1 --pretty=%s").Trim();
+    }
+
+    public void UndoLastCommit()
+    {
+        RunGit("reset --soft HEAD~1");
+    }
+
     public void CreateTag(string tag)
     {
         RunGit($"tag {tag}");
