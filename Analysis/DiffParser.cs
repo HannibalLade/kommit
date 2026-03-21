@@ -226,11 +226,16 @@ public partial class DiffParser
     {
         var renamed = new List<string>();
 
+        // Skip rename detection when there are many symbols — it's likely a restructuring, not renames
+        if (added.Count + removed.Count > 10)
+            return renamed;
+
         foreach (var old in removed.ToList())
         {
-            // Find a matching added symbol with similar name (e.g. case change, prefix/suffix change)
+            // Only match if names are clearly related (not just short substring matches)
             var match = added.FirstOrDefault(a =>
                 !a.Equals(old, StringComparison.Ordinal) &&
+                a.Length >= 4 && old.Length >= 4 &&
                 (a.Contains(old, StringComparison.OrdinalIgnoreCase) ||
                  old.Contains(a, StringComparison.OrdinalIgnoreCase) ||
                  LevenshteinSimilar(a, old)));
@@ -248,13 +253,13 @@ public partial class DiffParser
 
     private static bool LevenshteinSimilar(string a, string b)
     {
-        if (Math.Abs(a.Length - b.Length) > 5) return false;
+        if (Math.Abs(a.Length - b.Length) > 3) return false;
 
         var maxLen = Math.Max(a.Length, b.Length);
-        if (maxLen == 0) return true;
+        if (maxLen < 4) return false;
 
         var distance = LevenshteinDistance(a, b);
-        return (double)(maxLen - distance) / maxLen >= 0.6;
+        return (double)(maxLen - distance) / maxLen >= 0.7;
     }
 
     private static int LevenshteinDistance(string a, string b)

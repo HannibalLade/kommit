@@ -142,11 +142,16 @@ public class CommitAnalyzer
         if (parsed.AddedSymbols.Count > 0 && parsed.RemovedSymbols.Count == 0)
             return "feat";
 
-        // Both adding and removing → could be refactor if similar count
+        // Both adding and removing
         if (parsed.AddedSymbols.Count > 0 && parsed.RemovedSymbols.Count > 0)
         {
-            if (parsed.RenamedSymbols.Count > 0)
+            // If mostly renames with few other changes, it's a refactor
+            if (parsed.RenamedSymbols.Count > 0 && parsed.AddedSymbols.Count <= parsed.RenamedSymbols.Count)
                 return "refactor";
+            // More additions than renames/removals → feat
+            if (parsed.AddedSymbols.Count > parsed.RemovedSymbols.Count)
+                return "feat";
+            return "refactor";
         }
 
         return null;
