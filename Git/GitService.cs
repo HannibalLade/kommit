@@ -84,7 +84,7 @@ public class GitService
 
     public bool HasStagedChanges()
     {
-        var output = RunGit("diff --cached --name-only");
+        var (output, _, _) = RunGitRaw("diff --cached --name-only");
         return !string.IsNullOrWhiteSpace(output);
     }
 
@@ -162,7 +162,7 @@ public class GitService
 
     public List<string> GetConflictedFiles()
     {
-        var output = RunGit("diff --name-only --diff-filter=U");
+        var (output, _, _) = RunGitRaw("diff --name-only --diff-filter=U");
         return output.Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
     }
 
@@ -186,25 +186,8 @@ public class GitService
 
     public bool StartMerge(string branch)
     {
-        var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "git",
-                Arguments = $"merge {branch}",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            }
-        };
-
-        process.Start();
-        process.StandardOutput.ReadToEnd();
-        process.WaitForExit();
-
-        // Exit code 0 = clean merge, 1 = conflicts
-        return process.ExitCode != 0;
+        var (_, _, exitCode) = RunGitRaw($"merge {branch}");
+        return exitCode != 0;
     }
 
     public void Fetch()

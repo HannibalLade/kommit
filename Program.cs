@@ -68,6 +68,11 @@ class Program
                     editor.Run();
                     return 0;
                 case "pull":
+                    if (!git.HasUpstream())
+                    {
+                        Console.WriteLine("No upstream branch — nothing to pull.");
+                        return 0;
+                    }
                     git.Pull(config.PullStrategy);
                     Console.WriteLine("Pull complete.");
                     return 0;

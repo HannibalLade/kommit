@@ -42,6 +42,9 @@ Replace `osx-arm64` with your platform: `osx-x64`, `linux-x64`, or `linux-arm64`
 # Stage your changes and commit
 kommit
 
+# Use your own commit message
+kommit -m "feat: redesign the auth flow"
+
 # Preview the commit message without committing
 kommit --dry-run
 
