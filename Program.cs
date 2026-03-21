@@ -69,9 +69,9 @@ class Program
 
         if (!git.HasStagedChanges() && config.AutoAdd && !dryRun)
         {
-            Console.Write("No staged changes. Stage all files? [y/N] ");
+            Console.Write("No staged changes. Stage all files? [Y/n] ");
             var answer = Console.ReadLine()?.Trim();
-            if (answer?.Equals("y", StringComparison.OrdinalIgnoreCase) == true)
+            if (string.IsNullOrEmpty(answer) || answer.Equals("y", StringComparison.OrdinalIgnoreCase))
             {
                 git.StageAll();
             }
