@@ -103,8 +103,15 @@ class Program
 
         if (config.AutoPull && !dryRun)
         {
+            var needsStash = git.HasUnstagedChanges();
+            if (needsStash)
+                git.Stash();
+
             Console.WriteLine("Pulling latest changes...");
             git.Pull(config.PullStrategy);
+
+            if (needsStash)
+                git.StashPop();
         }
 
         if (!git.HasStagedChanges() && config.AutoAdd && !dryRun)

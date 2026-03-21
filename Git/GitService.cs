@@ -38,6 +38,22 @@ public class GitService
         return exitCode == 0 && output.Trim() == "true";
     }
 
+    public bool HasUnstagedChanges()
+    {
+        var (_, _, exitCode) = RunGitRaw("diff --quiet");
+        return exitCode != 0;
+    }
+
+    public void Stash()
+    {
+        RunGit("stash");
+    }
+
+    public void StashPop()
+    {
+        RunGit("stash pop");
+    }
+
     public string GetBranchName()
     {
         return RunGit("rev-parse --abbrev-ref HEAD").Trim();
