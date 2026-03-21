@@ -73,8 +73,8 @@ class Program
 
             if (!dryRun && config.AutoPush)
             {
-                Console.WriteLine("Pushing changes...");
                 git.Push(config.PushStrategy);
+                Console.WriteLine("Pushed.");
             }
 
             return 0;
@@ -94,14 +94,13 @@ class Program
             return 0;
         }
 
-        Console.WriteLine($"Committing: {finalMessage}");
         git.Commit(finalMessage);
+        Console.WriteLine(finalMessage);
 
-        // Auto-push after commit
         if (config.AutoPush)
         {
-            Console.WriteLine("Pushing changes...");
             git.Push(config.PushStrategy);
+            Console.WriteLine("Pushed.");
         }
 
         return 0;

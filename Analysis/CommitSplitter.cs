@@ -81,12 +81,12 @@ public class CommitSplitter
 
             if (dryRun)
             {
-                Console.WriteLine($"[dry-run] Would commit: {finalMessage}\n");
+                Console.WriteLine($"[dry-run] {finalMessage}\n");
             }
             else
             {
-                Console.WriteLine($"Committing: {finalMessage}");
                 _git.Commit(finalMessage.ToString());
+                Console.WriteLine(finalMessage);
                 commitCount++;
             }
 
