@@ -89,6 +89,7 @@ class Program
         }
 
         var dryRun = args.Contains("--dry-run");
+        var customMessage = GetFlag(args, "-m");
 
         // Detached HEAD warning
         var branch = git.GetBranchName();
@@ -130,29 +131,38 @@ class Program
             return 1;
         }
 
-        var diff = git.GetStagedDiff();
-        var analyzer = new CommitAnalyzer();
+        string finalMessage;
 
-        var splitter = new CommitSplitter(git, analyzer, config);
-        if (splitter.ShouldSplit(diff))
+        if (customMessage is not null)
         {
-            splitter.RunInteractiveSplit(branch, diff, dryRun);
+            finalMessage = customMessage;
+        }
+        else
+        {
+            var diff = git.GetStagedDiff();
+            var analyzer = new CommitAnalyzer();
 
-            if (!dryRun && config.AutoPush)
+            var splitter = new CommitSplitter(git, analyzer, config);
+            if (splitter.ShouldSplit(diff))
             {
-                git.Push(config.PushStrategy);
-                Console.WriteLine("Pushed.");
+                splitter.RunInteractiveSplit(branch, diff, dryRun);
+
+                if (!dryRun && config.AutoPush)
+                {
+                    git.Push(config.PushStrategy);
+                    Console.WriteLine("Pushed.");
+                }
+
+                return 0;
             }
 
-            return 0;
+            var message = analyzer.Analyze(branch, diff);
+
+            if (config.DefaultScope is not null && message.Scope is null)
+                message = message with { Scope = config.DefaultScope };
+
+            finalMessage = TruncateMessage(message.ToString(), config.MaxCommitLength);
         }
-
-        var message = analyzer.Analyze(branch, diff);
-
-        if (config.DefaultScope is not null && message.Scope is null)
-            message = message with { Scope = config.DefaultScope };
-
-        var finalMessage = TruncateMessage(message.ToString(), config.MaxCommitLength);
 
         if (dryRun)
         {
@@ -170,6 +180,14 @@ class Program
         }
 
         return 0;
+    }
+
+    private static string? GetFlag(string[] args, string flag)
+    {
+        var index = Array.IndexOf(args, flag);
+        if (index >= 0 && index + 1 < args.Length)
+            return args[index + 1];
+        return null;
     }
 
     private static string TruncateMessage(string message, int maxLength)
@@ -203,6 +221,7 @@ class Program
         Console.WriteLine("  update          Check for and install the latest version");
         Console.WriteLine();
         Console.WriteLine("Options:");
+        Console.WriteLine("  -m \"message\"    Use a custom commit message instead of auto-generating");
         Console.WriteLine("  --dry-run       Preview the commit message without committing");
         Console.WriteLine("  --version       Show the current version");
         Console.WriteLine("  -h, --help      Show this help message");
