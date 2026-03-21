@@ -74,12 +74,19 @@ kommit tag -patch   # bump patch (v0.2.0 → v0.2.1)
 
 ### `kommit merge`
 
-Handle merge conflicts quickly.
+Merge a branch and resolve conflicts interactively.
 
 ```sh
-kommit merge              # list conflicted files
-kommit merge -incoming    # accept all incoming changes, commit, and push
-kommit merge -current     # keep all current changes, commit, and push
+# Start a merge and resolve conflicts per-file (incoming/current/skip)
+kommit merge main
+kommit merge origin/develop
+
+# If already in a merge conflict, resume interactive resolution
+kommit merge
+
+# Bulk resolve all conflicts at once
+kommit merge main -incoming    # accept all incoming changes
+kommit merge main -current     # keep all current changes
 ```
 
 ### `kommit config`

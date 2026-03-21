@@ -135,10 +135,35 @@ class Program
 
     private static int HandleMerge(string[] args, GitService git, KommitConfig config)
     {
+        var useIncoming = args.Contains("-incoming");
+        var useCurrent = args.Contains("-current");
+
+        // If a branch name is provided, start the merge
+        var branchArg = args.Skip(1).FirstOrDefault(a => !a.StartsWith("-"));
+
         if (!git.IsMergeInProgress())
         {
-            Console.Error.WriteLine("No merge in progress.");
-            return 1;
+            if (branchArg is null)
+            {
+                Console.Error.WriteLine("No merge in progress. Start one with: kommit merge <branch>");
+                return 1;
+            }
+
+            Console.WriteLine($"Fetching latest from origin...");
+            git.Fetch();
+
+            Console.WriteLine($"Merging {branchArg} into {git.GetBranchName()}...");
+            var hasConflicts = git.StartMerge(branchArg);
+
+            if (!hasConflicts)
+            {
+                Console.WriteLine("Merged cleanly.");
+                git.Push(config.PushStrategy);
+                Console.WriteLine("Pushed.");
+                return 0;
+            }
+
+            Console.WriteLine("Merge has conflicts.\n");
         }
 
         var conflicts = git.GetConflictedFiles();
@@ -148,41 +173,81 @@ class Program
             return 0;
         }
 
-        var useIncoming = args.Contains("-incoming");
-        var useCurrent = args.Contains("-current");
-
-        if (!useIncoming && !useCurrent)
+        // Bulk resolve with -incoming or -current
+        if (useIncoming || useCurrent)
         {
-            Console.WriteLine($"Merge in progress with {conflicts.Count} conflicted file(s):");
+            var strategy = useIncoming ? "incoming" : "current";
+            Console.WriteLine($"WARNING: This will resolve all {conflicts.Count} conflict(s) by accepting {strategy} changes:");
             foreach (var file in conflicts)
                 Console.WriteLine($"  - {file}");
-            Console.WriteLine();
-            Console.WriteLine("Use 'kommit merge -incoming' to accept all incoming changes.");
-            Console.WriteLine("Use 'kommit merge -current' to keep all current changes.");
-            return 0;
+
+            Console.Write("\nAre you sure? [y/N] ");
+            var answer = Console.ReadLine()?.Trim();
+            if (!answer?.Equals("y", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                Console.WriteLine("Aborted.");
+                return 1;
+            }
+
+            if (useIncoming)
+                git.AcceptIncoming(conflicts);
+            else
+                git.AcceptCurrent(conflicts);
+
+            git.StageFiles(conflicts);
+            return CommitAndPushMerge(git, config, conflicts);
         }
 
-        var strategy = useIncoming ? "incoming" : "current";
+        // Interactive per-file resolution
+        Console.WriteLine($"{conflicts.Count} conflicted file(s):\n");
 
-        Console.WriteLine($"WARNING: This will resolve all {conflicts.Count} conflict(s) by accepting {strategy} changes:");
         foreach (var file in conflicts)
-            Console.WriteLine($"  - {file}");
-
-        Console.Write("\nAre you sure? [y/N] ");
-        var answer = Console.ReadLine()?.Trim();
-        if (!answer?.Equals("y", StringComparison.OrdinalIgnoreCase) == true)
         {
-            Console.WriteLine("Aborted.");
+            Console.WriteLine($"  {file}");
+            Console.Write("  [i]ncoming / [c]urrent / [s]kip? ");
+
+            while (true)
+            {
+                var input = Console.ReadLine()?.Trim().ToLowerInvariant();
+                if (input is "i" or "incoming")
+                {
+                    git.AcceptIncoming(new[] { file });
+                    git.StageFiles(new[] { file });
+                    Console.WriteLine("  -> accepted incoming\n");
+                    break;
+                }
+                if (input is "c" or "current")
+                {
+                    git.AcceptCurrent(new[] { file });
+                    git.StageFiles(new[] { file });
+                    Console.WriteLine("  -> kept current\n");
+                    break;
+                }
+                if (input is "s" or "skip")
+                {
+                    Console.WriteLine("  -> skipped\n");
+                    break;
+                }
+                Console.Write("  [i]ncoming / [c]urrent / [s]kip? ");
+            }
+        }
+
+        // Check if there are still unresolved conflicts
+        var remaining = git.GetConflictedFiles();
+        if (remaining.Count > 0)
+        {
+            Console.WriteLine($"{remaining.Count} conflict(s) still unresolved:");
+            foreach (var file in remaining)
+                Console.WriteLine($"  - {file}");
+            Console.WriteLine("\nResolve them manually or run 'kommit merge' again.");
             return 1;
         }
 
-        if (useIncoming)
-            git.AcceptIncoming(conflicts);
-        else
-            git.AcceptCurrent(conflicts);
+        return CommitAndPushMerge(git, config, conflicts);
+    }
 
-        git.StageFiles(conflicts);
-
+    private static int CommitAndPushMerge(GitService git, KommitConfig config, List<string> conflicts)
+    {
         var description = conflicts.Count == 1
             ? $"resolve merge conflict in {Path.GetFileName(conflicts[0])}"
             : $"resolve merge conflicts in {conflicts.Count} files";
@@ -270,9 +335,9 @@ class Program
         Console.WriteLine();
         Console.WriteLine("Commands:");
         Console.WriteLine("  config          Open interactive config editor");
-        Console.WriteLine("  merge           Show conflicted files in a merge");
-        Console.WriteLine("    -incoming       Accept all incoming changes");
-        Console.WriteLine("    -current        Keep all current changes");
+        Console.WriteLine("  merge <branch>  Merge a branch into current branch");
+        Console.WriteLine("    -incoming       Accept all incoming changes (skip interactive)");
+        Console.WriteLine("    -current        Keep all current changes (skip interactive)");
         Console.WriteLine("  push            Push changes using configured strategy");
         Console.WriteLine("  pull            Pull changes using configured strategy");
         Console.WriteLine("  tag             Bump minor version and push tag");

@@ -132,6 +132,34 @@ public class GitService
             RunGit($"checkout --ours \"{file}\"");
     }
 
+    public bool StartMerge(string branch)
+    {
+        var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "git",
+                Arguments = $"merge {branch}",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }
+        };
+
+        process.Start();
+        process.StandardOutput.ReadToEnd();
+        process.WaitForExit();
+
+        // Exit code 0 = clean merge, 1 = conflicts
+        return process.ExitCode != 0;
+    }
+
+    public void Fetch()
+    {
+        RunGit("fetch origin");
+    }
+
     public void CreateTag(string tag)
     {
         RunGit($"tag {tag}");
