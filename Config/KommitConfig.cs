@@ -30,4 +30,7 @@ public class KommitConfig
 
     [JsonPropertyName("maxStagedLines")]
     public int? MaxStagedLines { get; set; } = null;
+
+    [JsonPropertyName("apiToken")]
+    public string? ApiToken { get; set; } = null;
 }

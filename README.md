@@ -89,6 +89,20 @@ kommit merge main -incoming    # accept all incoming changes
 kommit merge main -current     # keep all current changes
 ```
 
+### `kommit mr`
+
+Create a merge request (GitLab) or pull request (GitHub) from your current branch.
+
+```sh
+# Create an MR from current branch into develop
+kommit mr develop
+
+# Requires an API token — set it with:
+kommit config
+```
+
+Automatically detects GitHub vs GitLab from the remote URL, pushes your branch, checks for conflicts, and creates the MR/PR. Supports self-hosted GitLab instances.
+
 ### `kommit config`
 
 Open the interactive config editor. Use arrow keys to navigate, Enter/Space to toggle booleans or edit values, Q to save and quit.
@@ -119,7 +133,8 @@ Config is stored in `~/.kommitconfig` (JSON). You can edit it directly or use `k
   "defaultScope": null,
   "maxCommitLength": 72,
   "maxStagedFiles": null,
-  "maxStagedLines": null
+  "maxStagedLines": null,
+  "apiToken": null
 }
 ```
 
@@ -134,6 +149,7 @@ Config is stored in `~/.kommitconfig` (JSON). You can edit it directly or use `k
 | `maxCommitLength` | `72` | Max commit message length before truncation |
 | `maxStagedFiles` | `null` | File count threshold to trigger interactive commit splitting |
 | `maxStagedLines` | `null` | Line count threshold to trigger interactive commit splitting |
+| `apiToken` | `null` | GitHub/GitLab API token for creating merge requests |
 
 ## License
 

@@ -63,6 +63,11 @@ class Program
             return HandleMerge(args, git, config);
         }
 
+        if (args.Length > 0 && args[0] == "mr")
+        {
+            return HandleMr(args, git, config);
+        }
+
         var dryRun = args.Contains("--dry-run");
 
         // Auto-pull before commit
@@ -262,6 +267,85 @@ class Program
         return 0;
     }
 
+    private static int HandleMr(string[] args, GitService git, KommitConfig config)
+    {
+        if (string.IsNullOrEmpty(config.ApiToken))
+        {
+            Console.Error.WriteLine("No API token configured. Run 'kommit config' and set your GitHub/GitLab token.");
+            return 1;
+        }
+
+        var targetBranch = args.Length > 1 ? args.Skip(1).First(a => !a.StartsWith("-")) : null;
+        if (targetBranch is null)
+        {
+            Console.Error.WriteLine("Usage: kommit mr <target-branch>");
+            Console.Error.WriteLine("Example: kommit mr develop");
+            return 1;
+        }
+
+        var sourceBranch = git.GetBranchName();
+        var remoteUrl = git.GetRemoteUrl();
+        var remote = MergeRequestService.ParseRemoteUrl(remoteUrl);
+
+        if (remote.Platform == Platform.Unknown)
+        {
+            Console.Error.WriteLine($"Could not detect platform from remote: {remoteUrl}");
+            return 1;
+        }
+
+        var platformName = remote.Platform == Platform.GitHub ? "pull request" : "merge request";
+
+        // Push branch first
+        Console.WriteLine($"Pushing {sourceBranch}...");
+        git.PushBranch();
+
+        // Check for conflicts locally
+        Console.WriteLine($"Checking for conflicts with {targetBranch}...");
+        git.Fetch();
+        var hasConflicts = git.StartMerge($"origin/{targetBranch}");
+
+        if (hasConflicts)
+        {
+            var conflicts = git.GetConflictedFiles();
+            Console.WriteLine($"\nConflicts detected with {targetBranch} ({conflicts.Count} file(s)):");
+            foreach (var file in conflicts)
+                Console.WriteLine($"  - {file}");
+
+            // Abort the test merge
+            git.AbortMerge();
+
+            Console.Write($"\nCreate {platformName} anyway? Conflicts will be visible on the remote. [y/N] ");
+            var answer = Console.ReadLine()?.Trim();
+            if (!answer?.Equals("y", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                Console.WriteLine("Aborted. Use 'kommit merge' to resolve conflicts locally first.");
+                return 1;
+            }
+        }
+        else
+        {
+            // Abort the clean test merge — we don't want to actually merge locally
+            git.AbortMerge();
+            Console.WriteLine("No conflicts.");
+        }
+
+        var title = MergeRequestService.GenerateTitle(sourceBranch);
+        Console.WriteLine($"Creating {platformName}: \"{title}\"...");
+
+        var service = new MergeRequestService(config.ApiToken);
+        var url = service.CreateMergeRequest(remote, sourceBranch, targetBranch, title)
+            .GetAwaiter().GetResult();
+
+        if (url is null)
+        {
+            Console.Error.WriteLine($"Failed to create {platformName}.");
+            return 1;
+        }
+
+        Console.WriteLine(url);
+        return 0;
+    }
+
     private static int HandleTag(string[] args, GitService git)
     {
         var bump = "minor";
@@ -338,6 +422,7 @@ class Program
         Console.WriteLine("  merge <branch>  Merge a branch into current branch");
         Console.WriteLine("    -incoming       Accept all incoming changes (skip interactive)");
         Console.WriteLine("    -current        Keep all current changes (skip interactive)");
+        Console.WriteLine("  mr <branch>     Create a merge request/pull request to target branch");
         Console.WriteLine("  push            Push changes using configured strategy");
         Console.WriteLine("  pull            Pull changes using configured strategy");
         Console.WriteLine("  tag             Bump minor version and push tag");

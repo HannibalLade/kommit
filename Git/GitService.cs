@@ -160,6 +160,25 @@ public class GitService
         RunGit("fetch origin");
     }
 
+    public void AbortMerge()
+    {
+        RunGit("merge --abort");
+    }
+
+    public string GetRemoteUrl()
+    {
+        return RunGit("remote get-url origin").Trim();
+    }
+
+    public void PushBranch()
+    {
+        var branch = GetBranchName();
+        if (!HasUpstream())
+            RunGit($"push --set-upstream origin {branch}");
+        else
+            RunGit("push");
+    }
+
     public void CreateTag(string tag)
     {
         RunGit($"tag {tag}");
