@@ -144,7 +144,7 @@ public partial class DiffParser
     [GeneratedRegex(@"^\+.*(?:margin|padding|font-|color:|background|display:|flex|grid|border|width:|height:|@media|className|style=)", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
     private static partial Regex StyleRegex();
 
-    [GeneratedRegex(@"^\+.*(?:auth|token|password|secret|encrypt|decrypt|hash|salt|csrf|cors|sanitize|escape|validate.*input|HttpOnly|Secure)", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^\+.*(?:authenticat|authoriz|password|secret_?key|encrypt|decrypt|hash(?:ing|ed)|salt|csrf|cors|sanitize|escape_?html|validate.*input|HttpOnly|SecurePolicy|bearer|jwt|oauth)", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
     private static partial Regex SecurityRegex();
 
     public ParsedDiff Parse(string rawDiff)
