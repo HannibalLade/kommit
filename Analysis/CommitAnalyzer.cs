@@ -57,15 +57,15 @@ public class CommitAnalyzer
         if (typeFromBranch is not null)
             return typeFromBranch;
 
-        // 2. Signal-based inference from diff content
-        var typeFromSignals = GetTypeFromSignals(parsed, diff);
-        if (typeFromSignals is not null)
-            return typeFromSignals;
-
-        // 3. Symbol-based inference
+        // 2. Symbol-based inference (new methods/classes take priority)
         var typeFromSymbols = GetTypeFromSymbols(parsed, diff);
         if (typeFromSymbols is not null)
             return typeFromSymbols;
+
+        // 3. Signal-based inference from diff content
+        var typeFromSignals = GetTypeFromSignals(parsed, diff);
+        if (typeFromSignals is not null)
+            return typeFromSignals;
 
         // 4. File-type heuristics
         var typeFromFiles = GetTypeFromFiles(diff.ChangedFiles);
