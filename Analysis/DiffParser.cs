@@ -69,40 +69,43 @@ public partial class DiffParser
     [GeneratedRegex(@"^-\s*(?:export\s+)?(?:async\s+)?function\s+(\w+)", RegexOptions.Multiline)]
     private static partial Regex JsRemovedFunctionRegex();
 
-    // Python
+    [GeneratedRegex(@"^-\s*(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\(.*\)\s*=>", RegexOptions.Multiline)]
+    private static partial Regex JsRemovedArrowFunctionRegex();
+
+    // Python — skip private (_name) and dunder (__name__) methods
     [GeneratedRegex(@"^\+\s*class\s+(\w+)", RegexOptions.Multiline)]
     private static partial Regex PyClassRegex();
 
-    [GeneratedRegex(@"^\+\s*(?:async\s+)?def\s+(\w+)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\+\s*(?:async\s+)?def\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\(", RegexOptions.Multiline)]
     private static partial Regex PyFunctionRegex();
 
     [GeneratedRegex(@"^-\s*class\s+(\w+)", RegexOptions.Multiline)]
     private static partial Regex PyRemovedClassRegex();
 
-    [GeneratedRegex(@"^-\s*(?:async\s+)?def\s+(\w+)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^-\s*(?:async\s+)?def\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\(", RegexOptions.Multiline)]
     private static partial Regex PyRemovedFunctionRegex();
 
-    // Go
-    [GeneratedRegex(@"^\+\s*func\s+(?:\(\w+\s+\*?\w+\)\s+)?(\w+)\s*\(", RegexOptions.Multiline)]
+    // Go — only match exported (uppercase) functions and types
+    [GeneratedRegex(@"^\+\s*func\s+(?:\(\w+\s+\*?\w+\)\s+)?([A-Z]\w*)\s*\(", RegexOptions.Multiline)]
     private static partial Regex GoFunctionRegex();
 
-    [GeneratedRegex(@"^\+\s*type\s+(\w+)\s+(?:struct|interface)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\+\s*type\s+([A-Z]\w*)\s+(?:struct|interface)", RegexOptions.Multiline)]
     private static partial Regex GoTypeRegex();
 
-    [GeneratedRegex(@"^-\s*func\s+(?:\(\w+\s+\*?\w+\)\s+)?(\w+)\s*\(", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^-\s*func\s+(?:\(\w+\s+\*?\w+\)\s+)?([A-Z]\w*)\s*\(", RegexOptions.Multiline)]
     private static partial Regex GoRemovedFunctionRegex();
 
-    [GeneratedRegex(@"^-\s*type\s+(\w+)\s+(?:struct|interface)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^-\s*type\s+([A-Z]\w*)\s+(?:struct|interface)", RegexOptions.Multiline)]
     private static partial Regex GoRemovedTypeRegex();
 
-    // Rust
-    [GeneratedRegex(@"^\+\s*(?:pub\s+)?(?:async\s+)?fn\s+(\w+)", RegexOptions.Multiline)]
+    // Rust — only match pub functions for commit messages (skip internal helpers)
+    [GeneratedRegex(@"^\+\s*pub\s+(?:async\s+)?fn\s+(\w+)", RegexOptions.Multiline)]
     private static partial Regex RustFunctionRegex();
 
     [GeneratedRegex(@"^\+\s*(?:pub\s+)?(?:struct|enum|trait)\s+(\w+)", RegexOptions.Multiline)]
     private static partial Regex RustTypeRegex();
 
-    [GeneratedRegex(@"^-\s*(?:pub\s+)?(?:async\s+)?fn\s+(\w+)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^-\s*pub\s+(?:async\s+)?fn\s+(\w+)", RegexOptions.Multiline)]
     private static partial Regex RustRemovedFunctionRegex();
 
     [GeneratedRegex(@"^-\s*(?:pub\s+)?(?:struct|enum|trait)\s+(\w+)", RegexOptions.Multiline)]
@@ -125,10 +128,10 @@ public partial class DiffParser
     [GeneratedRegex(@"^-\s*.*(?://\s*(?:TODO|FIXME|HACK|XXX|BUG)|#\s*(?:TODO|FIXME|HACK|XXX|BUG))", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
     private static partial Regex TodoFixedRegex();
 
-    [GeneratedRegex(@"^\+.*(?:cache|memoiz|\.AsParallel|async\s+|await\s+|Parallel\.|\.AsNoTracking|lazy|buffer|batch|pool|throttl|debounce)", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^\+.*(?:cache|memoiz|\.AsParallel|Parallel\.|\.AsNoTracking|lazy|buffer|batch|pool(?:ing|ed|er)|throttl|debounce|\.AsSpan|stackalloc|\.Freeze|ConcurrentDictionary|\.ConfigureAwait)", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
     private static partial Regex PerformanceRegex();
 
-    [GeneratedRegex(@"^\+.*(?:Console\.Write|Logger\.|_logger\.|log\.|logging\.|print\(|fmt\.Print|println!|slog\.|ILogger)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\+.*(?:Console\.Write|Logger\.|_logger\.|log\.\w+\(|logging\.\w+\(|fmt\.Print|println!|slog\.|ILogger|console\.(?:log|warn|error|info)\(|logger\.\w+\()", RegexOptions.Multiline)]
     private static partial Regex LoggingRegex();
 
     [GeneratedRegex(@"^\+\s*(?:\[Test\]|\[Fact\]|\[Theory\]|\[TestMethod\]|describe\(['""]|(?:^|\s)it\(['""]|(?:^|\s)test\(['""]|def\s+test_|func\s+Test|#\[test\]|@Test\b|@pytest)", RegexOptions.Multiline)]
@@ -176,7 +179,7 @@ public partial class DiffParser
 
         // Extract removed members
         ExtractMatches(rawDiff, removedMembers,
-            CSharpRemovedMethodRegex(), JsRemovedFunctionRegex(),
+            CSharpRemovedMethodRegex(), JsRemovedFunctionRegex(), JsRemovedArrowFunctionRegex(),
             PyRemovedFunctionRegex(), GoRemovedFunctionRegex(), RustRemovedFunctionRegex());
 
         // Imports

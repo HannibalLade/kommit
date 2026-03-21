@@ -253,7 +253,18 @@ public class CommitAnalyzer
     private static string DescribeWithFiles(string action, IReadOnlyList<string> files)
     {
         if (files.Count == 1)
+        {
+            var purpose = InferFilePurpose(files[0]);
+            if (purpose is not null)
+                return $"{action} in {purpose}";
             return $"{action} in {Path.GetFileName(files[0])}";
+        }
+        if (files.Count <= 3)
+        {
+            var purposes = files.Select(InferFilePurpose).Where(p => p is not null).Distinct().ToList();
+            if (purposes.Count == 1)
+                return $"{action} in {purposes[0]}";
+        }
         return action;
     }
 
@@ -263,7 +274,26 @@ public class CommitAnalyzer
         var action = GetAction(diff);
 
         if (files.Count == 1)
-            return $"{action} {Path.GetFileName(files[0])}";
+        {
+            var fileName = Path.GetFileName(files[0]);
+            var purpose = InferFilePurpose(files[0]);
+            return purpose is not null ? $"{action} {purpose}" : $"{action} {fileName}";
+        }
+
+        // Check if all files share a common purpose/area
+        var purposes = files.Select(InferFilePurpose).Where(p => p is not null).Distinct().ToList();
+        if (purposes.Count == 1)
+            return $"{action} {purposes[0]}";
+
+        // Check if files share a common directory
+        var dirs = files
+            .Select(f => f.Replace('\\', '/'))
+            .Select(f => { var i = f.LastIndexOf('/'); return i > 0 ? f[..i] : null; })
+            .Where(d => d is not null)
+            .Distinct()
+            .ToList();
+        if (dirs.Count == 1)
+            return $"{action} {Path.GetFileName(dirs[0]!)} module";
 
         if (files.Count <= 3)
         {
@@ -272,6 +302,29 @@ public class CommitAnalyzer
         }
 
         return $"{action} {files.Count} files";
+    }
+
+    private static string? InferFilePurpose(string path)
+    {
+        var name = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
+        var dir = path.Replace('\\', '/').ToLowerInvariant();
+
+        if (name.Contains("controller") || dir.Contains("/controllers/")) return "API controller";
+        if (name.Contains("middleware")) return "middleware";
+        if (name.Contains("service") || dir.Contains("/services/")) return "service layer";
+        if (name.Contains("repository") || name.Contains("repo") || dir.Contains("/repositories/")) return "data access layer";
+        if (name.Contains("model") || dir.Contains("/models/") || dir.Contains("/entities/")) return "data model";
+        if (name.Contains("migration") || dir.Contains("/migrations/")) return "database migration";
+        if (name.Contains("component") || dir.Contains("/components/")) return "UI component";
+        if (name.Contains("route") || name.Contains("router") || dir.Contains("/routes/")) return "routing";
+        if (name.Contains("hook") || dir.Contains("/hooks/")) return "React hook";
+        if (name.Contains("util") || name.Contains("helper") || dir.Contains("/utils/") || dir.Contains("/helpers/")) return "utility functions";
+        if (name.Contains("config") || name.Contains("setting")) return "configuration";
+        if (name == "readme" || name == "changelog" || name == "contributing") return "documentation";
+        if (name == "dockerfile" || name.Contains("docker-compose")) return "Docker configuration";
+        if (name == "makefile" || name == "rakefile" || name == "taskfile") return "build scripts";
+
+        return null;
     }
 
     private static string DescribeSymbols(List<string> types, List<string> members)
@@ -302,7 +355,9 @@ public class CommitAnalyzer
     {
         if (diff.LinesAdded > 0 && diff.LinesDeleted == 0) return "add";
         if (diff.LinesAdded == 0 && diff.LinesDeleted > 0) return "remove";
-        if (diff.LinesDeleted > diff.LinesAdded) return "simplify";
+        if (diff.LinesDeleted > diff.LinesAdded * 2) return "simplify";
+        if (diff.LinesAdded > diff.LinesDeleted * 3) return "implement";
+        if (diff.LinesDeleted > diff.LinesAdded) return "clean up";
         return "update";
     }
 

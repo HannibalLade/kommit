@@ -243,9 +243,17 @@ public class CommitAnalyzerTests
     [Fact]
     public void Analyze_MoreAddedThanDeleted_DescriptionStartsWithUpdate()
     {
-        var diff = MakeDiff(files: ["Code.cs"], added: 10, deleted: 2);
+        var diff = MakeDiff(files: ["Code.cs"], added: 5, deleted: 3);
         var result = _analyzer.Analyze("main", diff);
         Assert.StartsWith("update", result.Description);
+    }
+
+    [Fact]
+    public void Analyze_ManyMoreAddedThanDeleted_DescriptionStartsWithImplement()
+    {
+        var diff = MakeDiff(files: ["Code.cs"], added: 10, deleted: 2);
+        var result = _analyzer.Analyze("main", diff);
+        Assert.StartsWith("implement", result.Description);
     }
 
     // ── CommitMessage.ToString() ──
