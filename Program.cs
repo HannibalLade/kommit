@@ -53,6 +53,11 @@ class Program
             return 0;
         }
 
+        if (args.Length > 0 && args[0] == "tag")
+        {
+            return HandleTag(args, git);
+        }
+
         var dryRun = args.Contains("--dry-run");
 
         // Auto-pull before commit
@@ -123,6 +128,41 @@ class Program
         return 0;
     }
 
+    private static int HandleTag(string[] args, GitService git)
+    {
+        var bump = "minor";
+        if (args.Contains("-major")) bump = "major";
+        else if (args.Contains("-patch")) bump = "patch";
+
+        var latest = git.GetLatestTag();
+        Version current;
+
+        if (latest is not null && latest.StartsWith("v") &&
+            Version.TryParse(latest[1..], out var parsed))
+        {
+            current = parsed;
+        }
+        else
+        {
+            current = new Version(0, 0, 0);
+        }
+
+        var next = bump switch
+        {
+            "major" => new Version(current.Major + 1, 0, 0),
+            "patch" => new Version(current.Major, current.Minor, current.Build + 1),
+            _ => new Version(current.Major, current.Minor + 1, 0),
+        };
+
+        var tag = $"v{next.Major}.{next.Minor}.{next.Build}";
+
+        git.CreateTag(tag);
+        git.PushTag(tag);
+        Console.WriteLine(tag);
+
+        return 0;
+    }
+
     private static string TruncateMessage(string message, int maxLength)
     {
         if (maxLength > 0 && message.Length > maxLength)
@@ -142,6 +182,9 @@ class Program
         Console.WriteLine("  config          Open interactive config editor");
         Console.WriteLine("  push            Push changes using configured strategy");
         Console.WriteLine("  pull            Pull changes using configured strategy");
+        Console.WriteLine("  tag             Bump minor version and push tag");
+        Console.WriteLine("    -major          Bump major version instead");
+        Console.WriteLine("    -patch          Bump patch version instead");
         Console.WriteLine("  update          Check for and install the latest version");
         Console.WriteLine();
         Console.WriteLine("Options:");

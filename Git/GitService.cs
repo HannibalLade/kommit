@@ -100,6 +100,24 @@ public class GitService
         return total;
     }
 
+    public string? GetLatestTag()
+    {
+        var output = RunGit("tag -l v* --sort=-v:refname").Trim();
+        if (string.IsNullOrEmpty(output))
+            return null;
+        return output.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+    }
+
+    public void CreateTag(string tag)
+    {
+        RunGit($"tag {tag}");
+    }
+
+    public void PushTag(string tag)
+    {
+        RunGit($"push origin {tag}");
+    }
+
     private bool HasUpstream()
     {
         var result = RunGit("rev-parse --abbrev-ref --symbolic-full-name @{u}");
