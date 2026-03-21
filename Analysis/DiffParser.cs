@@ -38,17 +38,19 @@ public partial class DiffParser
 {
     // --- Symbol patterns per language ---
 
-    // C# / Java
+    // C# / Java — classes/types match any visibility
     [GeneratedRegex(@"^\+\s*(?:public|private|protected|internal)?\s*(?:static\s+)?(?:partial\s+)?(?:class|record|struct|interface|enum)\s+(\w+)", RegexOptions.Multiline)]
     private static partial Regex CSharpClassRegex();
 
-    [GeneratedRegex(@"^\+\s*(?:public|private|protected|internal)?\s*(?:static\s+)?(?:async\s+)?(?:\w+(?:<[^>]+>)?)\s+(\w+)\s*\(", RegexOptions.Multiline)]
+    // C# methods — only match public/internal/protected (skip private helpers)
+    [GeneratedRegex(@"^\+\s*(?:public|internal|protected)\s+(?:static\s+)?(?:async\s+)?(?:\w+(?:<[^>]+>)?)\s+(\w+)\s*\(", RegexOptions.Multiline)]
     private static partial Regex CSharpMethodRegex();
 
     [GeneratedRegex(@"^-\s*(?:public|private|protected|internal)?\s*(?:static\s+)?(?:partial\s+)?(?:class|record|struct|interface|enum)\s+(\w+)", RegexOptions.Multiline)]
     private static partial Regex CSharpRemovedClassRegex();
 
-    [GeneratedRegex(@"^-\s*(?:public|private|protected|internal)?\s*(?:static\s+)?(?:async\s+)?(?:\w+(?:<[^>]+>)?)\s+(\w+)\s*\(", RegexOptions.Multiline)]
+    // Removed methods — match any visibility (we want to detect all removals)
+    [GeneratedRegex(@"^-\s*(?:public|internal|protected)\s+(?:static\s+)?(?:async\s+)?(?:\w+(?:<[^>]+>)?)\s+(\w+)\s*\(", RegexOptions.Multiline)]
     private static partial Regex CSharpRemovedMethodRegex();
 
     // JS / TS
