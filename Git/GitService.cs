@@ -249,7 +249,7 @@ public class GitService
         RunGit($"push origin {tag}");
     }
 
-    private bool HasUpstream()
+    public bool HasUpstream()
     {
         var (output, _, exitCode) = RunGitRaw("rev-parse --abbrev-ref --symbolic-full-name @{u}");
         return exitCode == 0 && !string.IsNullOrWhiteSpace(output);

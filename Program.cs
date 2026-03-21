@@ -101,7 +101,7 @@ class Program
                 return 1;
         }
 
-        if (config.AutoPull && !dryRun)
+        if (config.AutoPull && !dryRun && git.HasUpstream())
         {
             var needsStash = git.HasUnstagedChanges();
             if (needsStash)
