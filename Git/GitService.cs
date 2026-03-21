@@ -3,8 +3,41 @@ using Kommit.Models;
 
 namespace Kommit.Git;
 
+public class GitException : Exception
+{
+    public GitException(string message) : base(message) { }
+}
+
 public class GitService
 {
+    public static bool IsGitInstalled()
+    {
+        try
+        {
+            var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = "git",
+                Arguments = "--version",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            });
+            process?.WaitForExit();
+            return process?.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public static bool IsGitRepo()
+    {
+        var (output, _, exitCode) = RunGitRaw("rev-parse --is-inside-work-tree");
+        return exitCode == 0 && output.Trim() == "true";
+    }
+
     public string GetBranchName()
     {
         return RunGit("rev-parse --abbrev-ref HEAD").Trim();
@@ -102,7 +135,8 @@ public class GitService
 
     public string? GetLatestTag()
     {
-        var output = RunGit("tag -l v* --sort=-v:refname").Trim();
+        var (output, _, _) = RunGitRaw("tag -l v* --sort=-v:refname");
+        output = output.Trim();
         if (string.IsNullOrEmpty(output))
             return null;
         return output.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
@@ -162,7 +196,7 @@ public class GitService
 
     public void AbortMerge()
     {
-        RunGit("merge --abort");
+        RunGitRaw("merge --abort");
     }
 
     public string GetRemoteUrl()
@@ -191,11 +225,24 @@ public class GitService
 
     private bool HasUpstream()
     {
-        var result = RunGit("rev-parse --abbrev-ref --symbolic-full-name @{u}");
-        return !string.IsNullOrWhiteSpace(result);
+        var (output, _, exitCode) = RunGitRaw("rev-parse --abbrev-ref --symbolic-full-name @{u}");
+        return exitCode == 0 && !string.IsNullOrWhiteSpace(output);
     }
 
     private static string RunGit(string arguments)
+    {
+        var (output, error, exitCode) = RunGitRaw(arguments);
+
+        if (exitCode != 0)
+        {
+            var message = string.IsNullOrWhiteSpace(error) ? $"git {arguments} failed" : error.Trim();
+            throw new GitException(message);
+        }
+
+        return output;
+    }
+
+    private static (string output, string error, int exitCode) RunGitRaw(string arguments)
     {
         var process = new Process
         {
@@ -212,8 +259,9 @@ public class GitService
 
         process.Start();
         var output = process.StandardOutput.ReadToEnd();
+        var error = process.StandardError.ReadToEnd();
         process.WaitForExit();
 
-        return output;
+        return (output, error, process.ExitCode);
     }
 }

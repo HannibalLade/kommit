@@ -28,6 +28,33 @@ class Program
             return updateService.RunUpdateAsync().GetAwaiter().GetResult();
         }
 
+        if (!GitService.IsGitInstalled())
+        {
+            Console.Error.WriteLine("Git is not installed or not in your PATH.");
+            Console.Error.WriteLine("Install git: https://git-scm.com/downloads");
+            return 1;
+        }
+
+        if (!GitService.IsGitRepo())
+        {
+            Console.Error.WriteLine("Not a git repository. Run 'git init' to create one.");
+            return 1;
+        }
+
+        try
+        {
+            return Run(args);
+        }
+        catch (GitException ex)
+        {
+            Console.Error.WriteLine($"Git error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    static int Run(string[] args)
+    {
+
         var configService = new ConfigService();
         var config = configService.Load();
         var git = new GitService();
@@ -269,13 +296,7 @@ class Program
 
     private static int HandleMr(string[] args, GitService git, KommitConfig config)
     {
-        if (string.IsNullOrEmpty(config.ApiToken))
-        {
-            Console.Error.WriteLine("No API token configured. Run 'kommit config' and set your GitHub/GitLab token.");
-            return 1;
-        }
-
-        var targetBranch = args.Length > 1 ? args.Skip(1).First(a => !a.StartsWith("-")) : null;
+        var targetBranch = args.Length > 1 ? args.Skip(1).FirstOrDefault(a => !a.StartsWith("-")) : null;
         if (targetBranch is null)
         {
             Console.Error.WriteLine("Usage: kommit mr <target-branch>");
@@ -294,6 +315,15 @@ class Program
         }
 
         var platformName = remote.Platform == Platform.GitHub ? "pull request" : "merge request";
+
+        // Prompt for API token if not configured
+        if (string.IsNullOrEmpty(config.ApiToken))
+        {
+            var configService = new ConfigService();
+            config = PromptForApiToken(config, configService, remote.Platform);
+            if (string.IsNullOrEmpty(config.ApiToken))
+                return 1;
+        }
 
         // Push branch first
         Console.WriteLine($"Pushing {sourceBranch}...");
@@ -344,6 +374,44 @@ class Program
 
         Console.WriteLine(url);
         return 0;
+    }
+
+    private static KommitConfig PromptForApiToken(KommitConfig config, ConfigService configService, Platform platform)
+    {
+        Console.WriteLine("No API token configured.\n");
+
+        if (platform == Platform.GitHub)
+        {
+            Console.WriteLine("To create a GitHub Personal Access Token:");
+            Console.WriteLine("  1. Go to GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens");
+            Console.WriteLine("  2. Click 'Generate new token'");
+            Console.WriteLine("  3. Give it a name (e.g. 'kommit')");
+            Console.WriteLine("  4. Under 'Repository permissions', set 'Pull requests' to 'Read and write'");
+            Console.WriteLine("  5. Click 'Generate token' and copy it");
+        }
+        else
+        {
+            Console.WriteLine("To create a GitLab Personal Access Token:");
+            Console.WriteLine("  1. Go to GitLab → Settings → Access Tokens");
+            Console.WriteLine("  2. Give it a name (e.g. 'kommit')");
+            Console.WriteLine("  3. Select the 'api' scope");
+            Console.WriteLine("  4. Click 'Create personal access token' and copy it");
+        }
+
+        Console.Write("\nPaste your token here (or press Enter to cancel): ");
+        var token = Console.ReadLine()?.Trim();
+
+        if (string.IsNullOrEmpty(token))
+        {
+            Console.WriteLine("Cancelled.");
+            return config;
+        }
+
+        config.ApiToken = token;
+        configService.Save(config);
+        Console.WriteLine("Token saved to ~/.kommitconfig\n");
+
+        return config;
     }
 
     private static int HandleTag(string[] args, GitService git)

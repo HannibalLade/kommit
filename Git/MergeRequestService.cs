@@ -85,8 +85,7 @@ public partial class MergeRequestService
 
         if (!response.IsSuccessStatusCode)
         {
-            var error = await response.Content.ReadAsStringAsync();
-            Console.Error.WriteLine($"GitHub API error ({(int)response.StatusCode}): {error}");
+            PrintApiError("GitHub", response, await response.Content.ReadAsStringAsync());
             return null;
         }
 
@@ -117,8 +116,7 @@ public partial class MergeRequestService
 
         if (!response.IsSuccessStatusCode)
         {
-            var error = await response.Content.ReadAsStringAsync();
-            Console.Error.WriteLine($"GitLab API error ({(int)response.StatusCode}): {error}");
+            PrintApiError("GitLab", response, await response.Content.ReadAsStringAsync());
             return null;
         }
 
@@ -141,6 +139,35 @@ public partial class MergeRequestService
 
         // Capitalize first letter
         return char.ToUpper(name[0]) + name[1..];
+    }
+
+    private static void PrintApiError(string platform, HttpResponseMessage response, string body)
+    {
+        var status = (int)response.StatusCode;
+        var message = status switch
+        {
+            401 => "Invalid or expired API token. Run 'kommit config' to update it.",
+            403 => "Access denied. Your token may not have the required permissions.",
+            404 => "Repository not found. Check that the remote URL is correct and your token has access.",
+            409 => "A merge request already exists for this branch.",
+            422 => ParseValidationError(body) ?? "Invalid request. The merge request could not be created.",
+            _ => $"{platform} API error ({status}): {body}"
+        };
+        Console.Error.WriteLine(message);
+    }
+
+    private static string? ParseValidationError(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("errors", out var errors))
+                return $"Validation error: {errors}";
+            if (doc.RootElement.TryGetProperty("message", out var msg))
+                return $"Validation error: {msg}";
+        }
+        catch { }
+        return null;
     }
 
     [GeneratedRegex(@"^git@([^:]+):(.+)$")]
