@@ -91,6 +91,8 @@ public static class MrCommand
             Console.WriteLine($"Assignee: {currentUser}");
         if (selectedReviewers.Count > 0)
             Console.WriteLine($"Reviewers: {string.Join(", ", selectedReviewers)}");
+        else
+            Console.WriteLine("No reviewers selected.");
 
         var result = service.CreateMergeRequest(remote, sourceBranch, targetBranch, title, selectedReviewers, currentUser)
             .GetAwaiter().GetResult();
@@ -109,32 +111,37 @@ public static class MrCommand
     {
         var selected = new HashSet<int>();
         var cursorIndex = 0;
-        var lineCount = candidates.Count;
 
-        Console.WriteLine("\nSelect reviewers (arrow keys to navigate, Space to toggle, Enter to confirm):\n");
+        Console.WriteLine("\nSelect reviewers (Space to toggle, Enter to confirm):\n");
 
-        void Render(bool isFirstRender)
+        string FormatLine(int i)
         {
-            // Move cursor back up to overwrite previous render
-            if (!isFirstRender)
-                Console.Write($"\x1b[{lineCount + 1}A");
-
-            for (var i = 0; i < candidates.Count; i++)
-            {
-                var marker = selected.Contains(i) ? "[x]" : "[ ]";
-                var arrow = i == cursorIndex ? ">" : " ";
-                var you = candidates[i].Username.Equals(currentUser, StringComparison.OrdinalIgnoreCase) ? " (you)" : "";
-                var display = candidates[i].Name == candidates[i].Username
-                    ? candidates[i].Username
-                    : $"{candidates[i].Name} (@{candidates[i].Username})";
-                Console.Write($"\r\x1b[2K  {arrow} {marker} {display}{you}");
-                Console.WriteLine();
-            }
-            // Extra line for padding
-            Console.Write("\x1b[2K");
+            var marker = selected.Contains(i) ? "[x]" : "[ ]";
+            var arrow = i == cursorIndex ? ">" : " ";
+            var you = candidates[i].Username.Equals(currentUser, StringComparison.OrdinalIgnoreCase) ? " (you)" : "";
+            var display = candidates[i].Name == candidates[i].Username
+                ? candidates[i].Username
+                : $"{candidates[i].Name} (@{candidates[i].Username})";
+            return $"  {arrow} {marker} {display}{you}";
         }
 
-        Render(true);
+        void RenderLine(int i, int offset)
+        {
+            // Move cursor to the right line relative to current position
+            if (offset != 0)
+                Console.Write(offset > 0 ? $"\x1b[{offset}B" : $"\x1b[{-offset}A");
+            Console.Write($"\r\x1b[2K{FormatLine(i)}");
+            // Move back
+            if (offset != 0)
+                Console.Write(offset > 0 ? $"\x1b[{offset}A" : $"\x1b[{-offset}B");
+        }
+
+        // Initial render
+        for (var i = 0; i < candidates.Count; i++)
+            Console.WriteLine(FormatLine(i));
+
+        // Move cursor back to first item
+        Console.Write($"\x1b[{candidates.Count}A");
 
         while (true)
         {
@@ -142,13 +149,25 @@ public static class MrCommand
 
             if (key.Key == ConsoleKey.UpArrow && cursorIndex > 0)
             {
+                var oldIndex = cursorIndex;
                 cursorIndex--;
-                Render(false);
+                // Move cursor up one line in terminal
+                Console.Write("\x1b[1A");
+                // Update old line (now below us)
+                RenderLine(oldIndex, 1);
+                // Update current line
+                Console.Write($"\r\x1b[2K{FormatLine(cursorIndex)}");
             }
             else if (key.Key == ConsoleKey.DownArrow && cursorIndex < candidates.Count - 1)
             {
+                var oldIndex = cursorIndex;
                 cursorIndex++;
-                Render(false);
+                // Move cursor down one line in terminal
+                Console.Write("\x1b[1B");
+                // Update old line (now above us)
+                RenderLine(oldIndex, -1);
+                // Update current line
+                Console.Write($"\r\x1b[2K{FormatLine(cursorIndex)}");
             }
             else if (key.Key == ConsoleKey.Spacebar)
             {
@@ -156,15 +175,24 @@ public static class MrCommand
                     selected.Remove(cursorIndex);
                 else
                     selected.Add(cursorIndex);
-                Render(false);
+                Console.Write($"\r\x1b[2K{FormatLine(cursorIndex)}");
             }
             else if (key.Key == ConsoleKey.Enter)
             {
+                // Move to below the list
+                var remaining = candidates.Count - 1 - cursorIndex;
+                if (remaining > 0)
+                    Console.Write($"\x1b[{remaining}B");
+                Console.WriteLine();
                 Console.WriteLine();
                 break;
             }
             else if (key.Key is ConsoleKey.Q or ConsoleKey.Escape)
             {
+                var remaining = candidates.Count - 1 - cursorIndex;
+                if (remaining > 0)
+                    Console.Write($"\x1b[{remaining}B");
+                Console.WriteLine();
                 Console.WriteLine();
                 return [];
             }
