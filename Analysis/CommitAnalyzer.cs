@@ -38,45 +38,120 @@ public class CommitAnalyzer
         [".targets"] = "build",
     };
 
+    private readonly DiffParser _parser = new();
+
     public CommitMessage Analyze(string branchName, DiffSummary diff)
     {
-        var type = InferType(branchName, diff);
+        var parsed = _parser.Parse(diff.RawDiff);
+        var type = InferType(branchName, diff, parsed);
         var scope = InferScope(diff.ChangedFiles);
-        var description = InferDescription(type, diff);
+        var description = InferDescription(type, diff, parsed);
 
         return new CommitMessage(type, scope, description);
     }
 
-    private string InferType(string branchName, DiffSummary diff)
+    private string InferType(string branchName, DiffSummary diff, ParsedDiff parsed)
     {
-        // 1. Try branch prefix
+        // 1. Branch prefix is highest priority
         var typeFromBranch = GetTypeFromBranch(branchName);
         if (typeFromBranch is not null)
             return typeFromBranch;
 
-        // 2. Try file-type heuristics
+        // 2. Signal-based inference from diff content
+        var typeFromSignals = GetTypeFromSignals(parsed, diff);
+        if (typeFromSignals is not null)
+            return typeFromSignals;
+
+        // 3. Symbol-based inference
+        var typeFromSymbols = GetTypeFromSymbols(parsed, diff);
+        if (typeFromSymbols is not null)
+            return typeFromSymbols;
+
+        // 4. File-type heuristics
         var typeFromFiles = GetTypeFromFiles(diff.ChangedFiles);
         if (typeFromFiles is not null)
             return typeFromFiles;
 
-        // 3. Check if test files
+        // 5. All test files
         if (diff.ChangedFiles.All(f => IsTestFile(f)))
             return "test";
 
-        // 4. Check add/delete ratio
+        // 6. Line ratio fallback
         if (diff.LinesAdded == 0 && diff.LinesDeleted > 0)
             return "refactor";
 
         if (diff.LinesAdded > 0 && diff.LinesDeleted == 0)
             return "feat";
 
-        // 5. Default
+        // 7. Default
         return "chore";
+    }
+
+    private static string? GetTypeFromSignals(ParsedDiff parsed, DiffSummary diff)
+    {
+        var signals = parsed.Signals;
+
+        // Strong signals first
+        if (signals.HasFlag(DiffSignals.Tests))
+            return "test";
+
+        if (signals.HasFlag(DiffSignals.TodoFixed))
+            return "fix";
+
+        if (signals.HasFlag(DiffSignals.Security))
+            return "fix";
+
+        if (signals.HasFlag(DiffSignals.ErrorHandling) || signals.HasFlag(DiffSignals.NullChecks))
+        {
+            // If mostly adding error handling to existing code, it's a fix
+            if (diff.LinesAdded > diff.LinesDeleted)
+                return "fix";
+        }
+
+        if (signals.HasFlag(DiffSignals.Performance))
+            return "perf";
+
+        if (signals.HasFlag(DiffSignals.Documentation) && !signals.HasFlag(DiffSignals.ErrorHandling))
+            return "docs";
+
+        if (signals.HasFlag(DiffSignals.Styling))
+            return "style";
+
+        if (signals.HasFlag(DiffSignals.DependencyChange))
+            return "build";
+
+        if (signals.HasFlag(DiffSignals.ConfigChange))
+            return "chore";
+
+        return null;
+    }
+
+    private static string? GetTypeFromSymbols(ParsedDiff parsed, DiffSummary diff)
+    {
+        // Renames detected → refactor
+        if (parsed.RenamedSymbols.Count > 0 && parsed.AddedSymbols.Count == 0)
+            return "refactor";
+
+        // Only removing symbols → refactor
+        if (parsed.RemovedSymbols.Count > 0 && parsed.AddedSymbols.Count == 0)
+            return "refactor";
+
+        // Adding new symbols with no removals → feat
+        if (parsed.AddedSymbols.Count > 0 && parsed.RemovedSymbols.Count == 0)
+            return "feat";
+
+        // Both adding and removing → could be refactor if similar count
+        if (parsed.AddedSymbols.Count > 0 && parsed.RemovedSymbols.Count > 0)
+        {
+            if (parsed.RenamedSymbols.Count > 0)
+                return "refactor";
+        }
+
+        return null;
     }
 
     private static string? GetTypeFromBranch(string branchName)
     {
-        // Match patterns like "feat/something", "fix/issue-123", "feature/add-login"
         var slashIndex = branchName.IndexOf('/');
         if (slashIndex <= 0) return null;
 
@@ -96,7 +171,6 @@ public class CommitAnalyzer
 
         if (extensions.Count == 0) return null;
 
-        // If all files share the same mapped type, use it
         var mappedTypes = extensions
             .Select(e => ExtensionTypeMap.GetValueOrDefault(e))
             .Where(t => t is not null)
@@ -106,18 +180,113 @@ public class CommitAnalyzer
         if (mappedTypes.Count == 1 && mappedTypes[0] is not null && files.All(f => ExtensionTypeMap.ContainsKey(Path.GetExtension(f))))
             return mappedTypes[0];
 
-        // CI-specific files
         if (files.All(f => IsCiFile(f)))
             return "ci";
 
         return null;
     }
 
+    private static string InferDescription(string type, DiffSummary diff, ParsedDiff parsed)
+    {
+        // Try to build a meaningful description from parsed content
+
+        // Renames
+        if (parsed.RenamedSymbols.Count > 0)
+        {
+            if (parsed.RenamedSymbols.Count == 1)
+                return $"rename {parsed.RenamedSymbols[0]}";
+            return $"rename {parsed.RenamedSymbols.Count} symbols";
+        }
+
+        // New symbols added
+        if (parsed.AddedSymbols.Count > 0 && parsed.RemovedSymbols.Count == 0)
+        {
+            var action = type == "test" ? "add tests for" : "add";
+            if (parsed.AddedSymbols.Count == 1)
+                return $"{action} {parsed.AddedSymbols[0]}";
+            if (parsed.AddedSymbols.Count == 2)
+                return $"{action} {parsed.AddedSymbols[0]} and {parsed.AddedSymbols[1]}";
+            if (parsed.AddedSymbols.Count <= 4)
+                return $"{action} {string.Join(", ", parsed.AddedSymbols)}";
+            // Many symbols — group by what's most notable
+            return $"{action} {parsed.AddedSymbols[0]} and {parsed.AddedSymbols.Count - 1} others";
+        }
+
+        // Symbols removed
+        if (parsed.RemovedSymbols.Count > 0 && parsed.AddedSymbols.Count == 0)
+        {
+            if (parsed.RemovedSymbols.Count == 1)
+                return $"remove {parsed.RemovedSymbols[0]}";
+            return $"remove {parsed.RemovedSymbols.Count} symbols";
+        }
+
+        // Both added and removed — describe the change
+        if (parsed.AddedSymbols.Count > 0 && parsed.RemovedSymbols.Count > 0)
+        {
+            if (parsed.AddedSymbols.Count == 1 && parsed.RemovedSymbols.Count == 1)
+                return $"replace {parsed.RemovedSymbols[0]} with {parsed.AddedSymbols[0]}";
+            return $"refactor {parsed.AddedSymbols.Count + parsed.RemovedSymbols.Count} symbols";
+        }
+
+        // Signal-based descriptions
+        if (parsed.Signals.HasFlag(DiffSignals.ErrorHandling))
+            return DescribeWithFiles("add error handling", diff.ChangedFiles);
+
+        if (parsed.Signals.HasFlag(DiffSignals.NullChecks))
+            return DescribeWithFiles("add null safety checks", diff.ChangedFiles);
+
+        if (parsed.Signals.HasFlag(DiffSignals.TodoFixed))
+            return DescribeWithFiles("resolve TODO items", diff.ChangedFiles);
+
+        if (parsed.Signals.HasFlag(DiffSignals.Performance))
+            return DescribeWithFiles("improve performance", diff.ChangedFiles);
+
+        if (parsed.Signals.HasFlag(DiffSignals.Security))
+            return DescribeWithFiles("improve security", diff.ChangedFiles);
+
+        if (parsed.Signals.HasFlag(DiffSignals.Logging))
+            return DescribeWithFiles("update logging", diff.ChangedFiles);
+
+        // Fallback to file-based description
+        return DescribeFromFiles(diff);
+    }
+
+    private static string DescribeWithFiles(string action, IReadOnlyList<string> files)
+    {
+        if (files.Count == 1)
+            return $"{action} in {Path.GetFileName(files[0])}";
+        return action;
+    }
+
+    private static string DescribeFromFiles(DiffSummary diff)
+    {
+        var files = diff.ChangedFiles;
+        var action = GetAction(diff);
+
+        if (files.Count == 1)
+            return $"{action} {Path.GetFileName(files[0])}";
+
+        if (files.Count <= 3)
+        {
+            var fileNames = string.Join(", ", files.Select(Path.GetFileName));
+            return $"{action} {fileNames}";
+        }
+
+        return $"{action} {files.Count} files";
+    }
+
+    private static string GetAction(DiffSummary diff)
+    {
+        if (diff.LinesAdded > 0 && diff.LinesDeleted == 0) return "add";
+        if (diff.LinesAdded == 0 && diff.LinesDeleted > 0) return "remove";
+        if (diff.LinesDeleted > diff.LinesAdded) return "simplify";
+        return "update";
+    }
+
     private static string? InferScope(IReadOnlyList<string> files)
     {
         if (files.Count == 0) return null;
 
-        // If all files are in the same top-level directory, use that as scope
         var directories = files
             .Select(f => f.Replace('\\', '/'))
             .Select(f =>
@@ -133,42 +302,6 @@ public class CommitAnalyzer
             return directories[0];
 
         return null;
-    }
-
-    private static string InferDescription(string type, DiffSummary diff)
-    {
-        var files = diff.ChangedFiles;
-
-        if (files.Count == 1)
-        {
-            var fileName = Path.GetFileName(files[0]);
-            var action = GetAction(diff);
-            return $"{action} {fileName}";
-        }
-
-        if (files.Count <= 3)
-        {
-            var fileNames = string.Join(", ", files.Select(Path.GetFileName));
-            var action = GetAction(diff);
-            return $"{action} {fileNames}";
-        }
-
-        var commonExt = files
-            .Select(Path.GetExtension)
-            .GroupBy(e => e)
-            .OrderByDescending(g => g.Count())
-            .FirstOrDefault()?.Key;
-
-        var action2 = GetAction(diff);
-        return $"{action2} {files.Count} files";
-    }
-
-    private static string GetAction(DiffSummary diff)
-    {
-        if (diff.LinesAdded > 0 && diff.LinesDeleted == 0) return "add";
-        if (diff.LinesAdded == 0 && diff.LinesDeleted > 0) return "remove";
-        if (diff.LinesDeleted > diff.LinesAdded) return "simplify";
-        return "update";
     }
 
     private static bool IsTestFile(string path)
