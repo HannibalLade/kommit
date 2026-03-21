@@ -74,6 +74,11 @@ public class GitService
             RunGit($"add \"{file}\"");
     }
 
+    public void StageAll()
+    {
+        RunGit("add -A");
+    }
+
     public void UnstageAll()
     {
         RunGit("reset HEAD");

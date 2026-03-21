@@ -10,6 +10,9 @@ public class KommitConfig
     [JsonPropertyName("autoPull")]
     public bool AutoPull { get; set; } = false;
 
+    [JsonPropertyName("autoAdd")]
+    public bool AutoAdd { get; set; } = false;
+
     [JsonPropertyName("pullStrategy")]
     public string PullStrategy { get; set; } = "rebase";
 

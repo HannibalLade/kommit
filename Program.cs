@@ -62,6 +62,16 @@ class Program
             git.Pull(config.PullStrategy);
         }
 
+        if (!git.HasStagedChanges() && config.AutoAdd && !dryRun)
+        {
+            Console.Write("No staged changes. Stage all files? [y/N] ");
+            var answer = Console.ReadLine()?.Trim();
+            if (answer?.Equals("y", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                git.StageAll();
+            }
+        }
+
         if (!git.HasStagedChanges())
         {
             Console.Error.WriteLine("No staged changes found. Stage your changes with 'git add' first.");
@@ -140,6 +150,7 @@ class Program
         Console.WriteLine("  -h, --help      Show this help message");
         Console.WriteLine();
         Console.WriteLine("Config: ~/.kommitconfig (JSON)");
+        Console.WriteLine("  autoAdd         Prompt to stage all files if none staged (default: false)");
         Console.WriteLine("  autoPush        Auto-push after commit (default: false)");
         Console.WriteLine("  autoPull        Auto-pull before commit (default: false)");
         Console.WriteLine("  pullStrategy    \"rebase\" or \"merge\" (default: rebase)");

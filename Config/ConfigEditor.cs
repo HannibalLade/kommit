@@ -14,6 +14,7 @@ public class ConfigEditor
 
     private static readonly ConfigItem[] Items =
     {
+        new("autoAdd", "Auto-add all files (with confirmation)", ConfigItemType.Bool),
         new("autoPush", "Auto-push after commit", ConfigItemType.Bool),
         new("autoPull", "Auto-pull before commit", ConfigItemType.Bool),
         new("pullStrategy", "Pull strategy (rebase/merge)", ConfigItemType.String),
@@ -113,6 +114,7 @@ public class ConfigEditor
     {
         return item.Name switch
         {
+            "autoAdd" => _config.AutoAdd ? "[x]" : "[ ]",
             "autoPush" => _config.AutoPush ? "[x]" : "[ ]",
             "autoPull" => _config.AutoPull ? "[x]" : "[ ]",
             "pullStrategy" => _config.PullStrategy,
@@ -170,6 +172,7 @@ public class ConfigEditor
     {
         switch (name)
         {
+            case "autoAdd": _config.AutoAdd = !_config.AutoAdd; break;
             case "autoPush": _config.AutoPush = !_config.AutoPush; break;
             case "autoPull": _config.AutoPull = !_config.AutoPull; break;
         }

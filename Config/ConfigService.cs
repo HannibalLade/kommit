@@ -1,6 +1,10 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Kommit.Config;
+
+[JsonSerializable(typeof(KommitConfig))]
+internal partial class KommitConfigContext : JsonSerializerContext { }
 
 public class ConfigService
 {
@@ -12,7 +16,8 @@ public class ConfigService
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
+        TypeInfoResolver = KommitConfigContext.Default
     };
 
     public KommitConfig Load()
