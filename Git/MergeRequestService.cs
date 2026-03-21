@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 namespace Kommit.Git;
@@ -185,16 +186,16 @@ public partial class MergeRequestService
     {
         using var client = CreateGitHubClient();
 
-        var body = JsonSerializer.Serialize(new
+        var bodyObj = new JsonObject
         {
-            title,
-            head = sourceBranch,
-            @base = targetBranch
-        });
+            ["title"] = title,
+            ["head"] = sourceBranch,
+            ["base"] = targetBranch
+        };
 
         var response = await client.PostAsync(
             $"https://api.github.com/repos/{remote.ProjectPath}/pulls",
-            new StringContent(body, Encoding.UTF8, "application/json"));
+            new StringContent(bodyObj.ToJsonString(), Encoding.UTF8, "application/json"));
 
         if (!response.IsSuccessStatusCode)
         {
@@ -232,10 +233,13 @@ public partial class MergeRequestService
     {
         try
         {
-            var body = JsonSerializer.Serialize(new { reviewers });
+            var bodyObj = new JsonObject
+            {
+                ["reviewers"] = new JsonArray(reviewers.Select(r => (JsonNode)JsonValue.Create(r)!).ToArray())
+            };
             await client.PostAsync(
                 $"https://api.github.com/repos/{remote.ProjectPath}/pulls/{prNumber}/requested_reviewers",
-                new StringContent(body, Encoding.UTF8, "application/json"));
+                new StringContent(bodyObj.ToJsonString(), Encoding.UTF8, "application/json"));
         }
         catch { }
     }
@@ -281,7 +285,7 @@ public partial class MergeRequestService
                     .ToList();
         }
 
-        var bodyObj = new Dictionary<string, object>
+        var bodyObj = new JsonObject
         {
             ["source_branch"] = sourceBranch,
             ["target_branch"] = targetBranch,
@@ -290,13 +294,11 @@ public partial class MergeRequestService
         if (assigneeId.HasValue)
             bodyObj["assignee_id"] = assigneeId.Value;
         if (reviewerIds is { Count: > 0 })
-            bodyObj["reviewer_ids"] = reviewerIds;
-
-        var body = JsonSerializer.Serialize(bodyObj);
+            bodyObj["reviewer_ids"] = new JsonArray(reviewerIds.Select(id => (JsonNode)JsonValue.Create(id)).ToArray());
 
         var response = await client.PostAsync(
             $"{apiBase}/api/v4/projects/{projectId}/merge_requests",
-            new StringContent(body, Encoding.UTF8, "application/json"));
+            new StringContent(bodyObj.ToJsonString(), Encoding.UTF8, "application/json"));
 
         if (!response.IsSuccessStatusCode)
         {

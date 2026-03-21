@@ -41,20 +41,15 @@ public static class MrCommand
         var currentUser = service.GetCurrentUsername(remote).GetAwaiter().GetResult();
         var members = service.GetProjectMembers(remote).GetAwaiter().GetResult();
 
-        // Filter out current user from reviewer list
-        var reviewerCandidates = members
-            .Where(m => !m.Username.Equals(currentUser, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        // Interactive reviewer selection
+        // Interactive reviewer selection (includes yourself)
         var selectedReviewers = new List<string>();
-        if (reviewerCandidates.Count > 0)
+        if (members.Count > 0)
         {
-            selectedReviewers = PickReviewers(reviewerCandidates);
+            selectedReviewers = PickReviewers(members, currentUser);
         }
         else
         {
-            Console.WriteLine("No other project members found to assign as reviewers.");
+            Console.WriteLine("No project members found.");
         }
 
         // Push branch
@@ -110,33 +105,36 @@ public static class MrCommand
         return 0;
     }
 
-    private static List<string> PickReviewers(List<ProjectMember> candidates)
+    private static List<string> PickReviewers(List<ProjectMember> candidates, string? currentUser)
     {
         var selected = new HashSet<int>();
         var cursorIndex = 0;
+        var lineCount = candidates.Count;
 
         Console.WriteLine("\nSelect reviewers (arrow keys to navigate, Space to toggle, Enter to confirm):\n");
 
-        // Save cursor position
-        var startRow = Console.CursorTop;
-
-        void Render()
+        void Render(bool isFirstRender)
         {
-            Console.SetCursorPosition(0, startRow);
+            // Move cursor back up to overwrite previous render
+            if (!isFirstRender)
+                Console.Write($"\x1b[{lineCount + 1}A");
+
             for (var i = 0; i < candidates.Count; i++)
             {
                 var marker = selected.Contains(i) ? "[x]" : "[ ]";
                 var arrow = i == cursorIndex ? ">" : " ";
+                var you = candidates[i].Username.Equals(currentUser, StringComparison.OrdinalIgnoreCase) ? " (you)" : "";
                 var display = candidates[i].Name == candidates[i].Username
                     ? candidates[i].Username
                     : $"{candidates[i].Name} (@{candidates[i].Username})";
-                Console.Write($"  {arrow} {marker} {display}".PadRight(Console.WindowWidth - 1));
+                Console.Write($"\r\x1b[2K  {arrow} {marker} {display}{you}");
                 Console.WriteLine();
             }
-            Console.Write("".PadRight(Console.WindowWidth - 1));
+            // Extra line for padding
+            Console.Write("\x1b[2K");
         }
 
-        Render();
+        Render(true);
 
         while (true)
         {
@@ -145,12 +143,12 @@ public static class MrCommand
             if (key.Key == ConsoleKey.UpArrow && cursorIndex > 0)
             {
                 cursorIndex--;
-                Render();
+                Render(false);
             }
             else if (key.Key == ConsoleKey.DownArrow && cursorIndex < candidates.Count - 1)
             {
                 cursorIndex++;
-                Render();
+                Render(false);
             }
             else if (key.Key == ConsoleKey.Spacebar)
             {
@@ -158,17 +156,15 @@ public static class MrCommand
                     selected.Remove(cursorIndex);
                 else
                     selected.Add(cursorIndex);
-                Render();
+                Render(false);
             }
             else if (key.Key == ConsoleKey.Enter)
             {
-                Console.SetCursorPosition(0, startRow + candidates.Count);
                 Console.WriteLine();
                 break;
             }
             else if (key.Key is ConsoleKey.Q or ConsoleKey.Escape)
             {
-                Console.SetCursorPosition(0, startRow + candidates.Count);
                 Console.WriteLine();
                 return [];
             }
