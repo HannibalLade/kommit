@@ -40,51 +40,53 @@ public class CommitAnalyzer
 
     private readonly DiffParser _parser = new();
 
+    private enum TypeSource { Branch, Symbols, Signals, Files, Heuristic }
+
     public CommitMessage Analyze(string branchName, DiffSummary diff)
     {
         var parsed = _parser.Parse(diff.RawDiff);
-        var type = InferType(branchName, diff, parsed);
+        var (type, source) = InferType(branchName, diff, parsed);
         var scope = InferScope(diff.ChangedFiles);
-        var description = InferDescription(type, diff, parsed);
+        var description = InferDescription(type, source, diff, parsed);
 
         return new CommitMessage(type, scope, description);
     }
 
-    private string InferType(string branchName, DiffSummary diff, ParsedDiff parsed)
+    private (string type, TypeSource source) InferType(string branchName, DiffSummary diff, ParsedDiff parsed)
     {
         // 1. Branch prefix is highest priority
         var typeFromBranch = GetTypeFromBranch(branchName);
         if (typeFromBranch is not null)
-            return typeFromBranch;
+            return (typeFromBranch, TypeSource.Branch);
 
         // 2. Symbol-based inference (new methods/classes take priority)
         var typeFromSymbols = GetTypeFromSymbols(parsed, diff);
         if (typeFromSymbols is not null)
-            return typeFromSymbols;
+            return (typeFromSymbols, TypeSource.Symbols);
 
         // 3. Signal-based inference from diff content
         var typeFromSignals = GetTypeFromSignals(parsed, diff);
         if (typeFromSignals is not null)
-            return typeFromSignals;
+            return (typeFromSignals, TypeSource.Signals);
 
         // 4. File-type heuristics
         var typeFromFiles = GetTypeFromFiles(diff.ChangedFiles);
         if (typeFromFiles is not null)
-            return typeFromFiles;
+            return (typeFromFiles, TypeSource.Files);
 
         // 5. All test files
         if (diff.ChangedFiles.All(f => IsTestFile(f)))
-            return "test";
+            return ("test", TypeSource.Files);
 
         // 6. Line ratio fallback
         if (diff.LinesAdded == 0 && diff.LinesDeleted > 0)
-            return "refactor";
+            return ("refactor", TypeSource.Heuristic);
 
         if (diff.LinesAdded > 0 && diff.LinesDeleted == 0)
-            return "feat";
+            return ("feat", TypeSource.Heuristic);
 
         // 7. Default
-        return "chore";
+        return ("chore", TypeSource.Heuristic);
     }
 
     private static string? GetTypeFromSignals(ParsedDiff parsed, DiffSummary diff)
@@ -186,11 +188,9 @@ public class CommitAnalyzer
         return null;
     }
 
-    private static string InferDescription(string type, DiffSummary diff, ParsedDiff parsed)
+    private static string InferDescription(string type, TypeSource source, DiffSummary diff, ParsedDiff parsed)
     {
-        // Try to build a meaningful description from parsed content
-
-        // Renames
+        // Symbol-based descriptions (when symbols were detected)
         if (parsed.RenamedSymbols.Count > 0)
         {
             if (parsed.RenamedSymbols.Count == 1)
@@ -198,7 +198,6 @@ public class CommitAnalyzer
             return $"rename {parsed.RenamedSymbols.Count} symbols";
         }
 
-        // New symbols added
         if (parsed.AddedSymbols.Count > 0 && parsed.RemovedSymbols.Count == 0)
         {
             var action = type == "test" ? "add tests for" : "add";
@@ -208,11 +207,9 @@ public class CommitAnalyzer
                 return $"{action} {parsed.AddedSymbols[0]} and {parsed.AddedSymbols[1]}";
             if (parsed.AddedSymbols.Count <= 4)
                 return $"{action} {string.Join(", ", parsed.AddedSymbols)}";
-            // Many symbols — group by what's most notable
             return $"{action} {parsed.AddedSymbols[0]} and {parsed.AddedSymbols.Count - 1} others";
         }
 
-        // Symbols removed
         if (parsed.RemovedSymbols.Count > 0 && parsed.AddedSymbols.Count == 0)
         {
             if (parsed.RemovedSymbols.Count == 1)
@@ -220,7 +217,6 @@ public class CommitAnalyzer
             return $"remove {parsed.RemovedSymbols.Count} symbols";
         }
 
-        // Both added and removed — describe the change
         if (parsed.AddedSymbols.Count > 0 && parsed.RemovedSymbols.Count > 0)
         {
             if (parsed.AddedSymbols.Count == 1 && parsed.RemovedSymbols.Count == 1)
@@ -228,24 +224,27 @@ public class CommitAnalyzer
             return $"refactor {parsed.AddedSymbols.Count + parsed.RemovedSymbols.Count} symbols";
         }
 
-        // Signal-based descriptions
-        if (parsed.Signals.HasFlag(DiffSignals.ErrorHandling))
-            return DescribeWithFiles("add error handling", diff.ChangedFiles);
+        // Only use signal-based descriptions when signals actually determined the type
+        if (source == TypeSource.Signals)
+        {
+            if (parsed.Signals.HasFlag(DiffSignals.ErrorHandling))
+                return DescribeWithFiles("add error handling", diff.ChangedFiles);
 
-        if (parsed.Signals.HasFlag(DiffSignals.NullChecks))
-            return DescribeWithFiles("add null safety checks", diff.ChangedFiles);
+            if (parsed.Signals.HasFlag(DiffSignals.NullChecks))
+                return DescribeWithFiles("add null safety checks", diff.ChangedFiles);
 
-        if (parsed.Signals.HasFlag(DiffSignals.TodoFixed))
-            return DescribeWithFiles("resolve TODO items", diff.ChangedFiles);
+            if (parsed.Signals.HasFlag(DiffSignals.TodoFixed))
+                return DescribeWithFiles("resolve TODO items", diff.ChangedFiles);
 
-        if (parsed.Signals.HasFlag(DiffSignals.Performance))
-            return DescribeWithFiles("improve performance", diff.ChangedFiles);
+            if (parsed.Signals.HasFlag(DiffSignals.Performance))
+                return DescribeWithFiles("improve performance", diff.ChangedFiles);
 
-        if (parsed.Signals.HasFlag(DiffSignals.Security))
-            return DescribeWithFiles("improve security", diff.ChangedFiles);
+            if (parsed.Signals.HasFlag(DiffSignals.Security))
+                return DescribeWithFiles("improve security", diff.ChangedFiles);
 
-        if (parsed.Signals.HasFlag(DiffSignals.Logging))
-            return DescribeWithFiles("update logging", diff.ChangedFiles);
+            if (parsed.Signals.HasFlag(DiffSignals.Logging))
+                return DescribeWithFiles("update logging", diff.ChangedFiles);
+        }
 
         // Fallback to file-based description
         return DescribeFromFiles(diff);
