@@ -108,6 +108,30 @@ public class GitService
         return output.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
     }
 
+    public List<string> GetConflictedFiles()
+    {
+        var output = RunGit("diff --name-only --diff-filter=U");
+        return output.Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
+    }
+
+    public bool IsMergeInProgress()
+    {
+        var output = RunGit("rev-parse --git-dir").Trim();
+        return File.Exists(Path.Combine(output, "MERGE_HEAD"));
+    }
+
+    public void AcceptIncoming(IEnumerable<string> files)
+    {
+        foreach (var file in files)
+            RunGit($"checkout --theirs \"{file}\"");
+    }
+
+    public void AcceptCurrent(IEnumerable<string> files)
+    {
+        foreach (var file in files)
+            RunGit($"checkout --ours \"{file}\"");
+    }
+
     public void CreateTag(string tag)
     {
         RunGit($"tag {tag}");

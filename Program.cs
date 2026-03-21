@@ -58,6 +58,11 @@ class Program
             return HandleTag(args, git);
         }
 
+        if (args.Length > 0 && args[0] == "merge")
+        {
+            return HandleMerge(args, git, config);
+        }
+
         var dryRun = args.Contains("--dry-run");
 
         // Auto-pull before commit
@@ -128,6 +133,70 @@ class Program
         return 0;
     }
 
+    private static int HandleMerge(string[] args, GitService git, KommitConfig config)
+    {
+        if (!git.IsMergeInProgress())
+        {
+            Console.Error.WriteLine("No merge in progress.");
+            return 1;
+        }
+
+        var conflicts = git.GetConflictedFiles();
+        if (conflicts.Count == 0)
+        {
+            Console.WriteLine("No conflicted files found. You can commit the merge.");
+            return 0;
+        }
+
+        var useIncoming = args.Contains("-incoming");
+        var useCurrent = args.Contains("-current");
+
+        if (!useIncoming && !useCurrent)
+        {
+            Console.WriteLine($"Merge in progress with {conflicts.Count} conflicted file(s):");
+            foreach (var file in conflicts)
+                Console.WriteLine($"  - {file}");
+            Console.WriteLine();
+            Console.WriteLine("Use 'kommit merge -incoming' to accept all incoming changes.");
+            Console.WriteLine("Use 'kommit merge -current' to keep all current changes.");
+            return 0;
+        }
+
+        var strategy = useIncoming ? "incoming" : "current";
+
+        Console.WriteLine($"WARNING: This will resolve all {conflicts.Count} conflict(s) by accepting {strategy} changes:");
+        foreach (var file in conflicts)
+            Console.WriteLine($"  - {file}");
+
+        Console.Write("\nAre you sure? [y/N] ");
+        var answer = Console.ReadLine()?.Trim();
+        if (!answer?.Equals("y", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            Console.WriteLine("Aborted.");
+            return 1;
+        }
+
+        if (useIncoming)
+            git.AcceptIncoming(conflicts);
+        else
+            git.AcceptCurrent(conflicts);
+
+        git.StageFiles(conflicts);
+
+        var description = conflicts.Count == 1
+            ? $"resolve merge conflict in {Path.GetFileName(conflicts[0])}"
+            : $"resolve merge conflicts in {conflicts.Count} files";
+        var message = $"fix: {description}";
+
+        git.Commit(message);
+        Console.WriteLine(message);
+
+        git.Push(config.PushStrategy);
+        Console.WriteLine("Pushed.");
+
+        return 0;
+    }
+
     private static int HandleTag(string[] args, GitService git)
     {
         var bump = "minor";
@@ -180,6 +249,9 @@ class Program
         Console.WriteLine();
         Console.WriteLine("Commands:");
         Console.WriteLine("  config          Open interactive config editor");
+        Console.WriteLine("  merge           Show conflicted files in a merge");
+        Console.WriteLine("    -incoming       Accept all incoming changes");
+        Console.WriteLine("    -current        Keep all current changes");
         Console.WriteLine("  push            Push changes using configured strategy");
         Console.WriteLine("  pull            Pull changes using configured strategy");
         Console.WriteLine("  tag             Bump minor version and push tag");
