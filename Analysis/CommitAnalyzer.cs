@@ -103,7 +103,7 @@ public class CommitAnalyzer
             .Distinct()
             .ToList();
 
-        if (mappedTypes.Count == 1 && mappedTypes[0] is not null && files.Count == extensions.Count(e => ExtensionTypeMap.ContainsKey(e)))
+        if (mappedTypes.Count == 1 && mappedTypes[0] is not null && files.All(f => ExtensionTypeMap.ContainsKey(Path.GetExtension(f))))
             return mappedTypes[0];
 
         // CI-specific files
@@ -180,7 +180,9 @@ public class CommitAnalyzer
             || name.EndsWith(".spec", StringComparison.OrdinalIgnoreCase)
             || name.StartsWith("Test", StringComparison.OrdinalIgnoreCase)
             || path.Contains("/test/", StringComparison.OrdinalIgnoreCase)
-            || path.Contains("/tests/", StringComparison.OrdinalIgnoreCase);
+            || path.Contains("/tests/", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("test/", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("tests/", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsCiFile(string path)

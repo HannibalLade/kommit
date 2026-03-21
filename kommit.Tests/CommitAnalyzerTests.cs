@@ -72,6 +72,14 @@ public class CommitAnalyzerTests
     }
 
     [Fact]
+    public void Analyze_MultipleMarkdownFiles_ReturnsDocsType()
+    {
+        var diff = MakeDiff(files: ["README.md", "CHANGELOG.md"]);
+        var result = _analyzer.Analyze("main", diff);
+        Assert.Equal("docs", result.Type);
+    }
+
+    [Fact]
     public void Analyze_OnlyCsprojFiles_ReturnsBuildType()
     {
         var diff = MakeDiff(files: ["kommit.csproj"]);
@@ -106,6 +114,8 @@ public class CommitAnalyzerTests
     [InlineData("TestFoo.cs")]
     [InlineData("src/tests/Foo.cs")]
     [InlineData("src/test/Bar.cs")]
+    [InlineData("tests/Foo.cs")]
+    [InlineData("test/Bar.cs")]
     public void Analyze_AllTestFiles_ReturnsTestType(string testFile)
     {
         var diff = MakeDiff(files: [testFile]);
