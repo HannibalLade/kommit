@@ -190,7 +190,7 @@ public class CommitAnalyzer
 
     private static string InferDescription(string type, TypeSource source, DiffSummary diff, ParsedDiff parsed)
     {
-        // Symbol-based descriptions (when symbols were detected)
+        // Symbol-based descriptions — prioritize type names over member names
         if (parsed.RenamedSymbols.Count > 0)
         {
             if (parsed.RenamedSymbols.Count == 1)
@@ -201,26 +201,21 @@ public class CommitAnalyzer
         if (parsed.AddedSymbols.Count > 0 && parsed.RemovedSymbols.Count == 0)
         {
             var action = type == "test" ? "add tests for" : "add";
-            if (parsed.AddedSymbols.Count == 1)
-                return $"{action} {parsed.AddedSymbols[0]}";
-            if (parsed.AddedSymbols.Count == 2)
-                return $"{action} {parsed.AddedSymbols[0]} and {parsed.AddedSymbols[1]}";
-            if (parsed.AddedSymbols.Count <= 4)
-                return $"{action} {string.Join(", ", parsed.AddedSymbols)}";
-            return $"{action} {parsed.AddedSymbols[0]} and {parsed.AddedSymbols.Count - 1} others";
+            return $"{action} {DescribeSymbols(parsed.AddedTypes, parsed.AddedMembers)}";
         }
 
         if (parsed.RemovedSymbols.Count > 0 && parsed.AddedSymbols.Count == 0)
         {
-            if (parsed.RemovedSymbols.Count == 1)
-                return $"remove {parsed.RemovedSymbols[0]}";
-            return $"remove {parsed.RemovedSymbols.Count} symbols";
+            return $"remove {DescribeSymbols(parsed.RemovedTypes, parsed.RemovedMembers)}";
         }
 
         if (parsed.AddedSymbols.Count > 0 && parsed.RemovedSymbols.Count > 0)
         {
             if (parsed.AddedSymbols.Count == 1 && parsed.RemovedSymbols.Count == 1)
                 return $"replace {parsed.RemovedSymbols[0]} with {parsed.AddedSymbols[0]}";
+            // If new types were added alongside modifications, focus on the types
+            if (parsed.AddedTypes.Count > 0)
+                return $"add {DescribeSymbols(parsed.AddedTypes, [])}";
             return $"refactor {parsed.AddedSymbols.Count + parsed.RemovedSymbols.Count} symbols";
         }
 
@@ -272,6 +267,30 @@ public class CommitAnalyzer
         }
 
         return $"{action} {files.Count} files";
+    }
+
+    private static string DescribeSymbols(List<string> types, List<string> members)
+    {
+        // If there are type names, prefer those (e.g. "MergeRequestService")
+        if (types.Count > 0)
+        {
+            if (types.Count == 1 && members.Count == 0)
+                return types[0];
+            if (types.Count == 1)
+                return types[0];
+            if (types.Count == 2)
+                return $"{types[0]} and {types[1]}";
+            return $"{types[0]} and {types.Count - 1} others";
+        }
+
+        // No types, just members
+        if (members.Count == 1)
+            return members[0];
+        if (members.Count == 2)
+            return $"{members[0]} and {members[1]}";
+        if (members.Count <= 4)
+            return string.Join(", ", members);
+        return $"{members[0]} and {members.Count - 1} others";
     }
 
     private static string GetAction(DiffSummary diff)

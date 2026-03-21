@@ -3,13 +3,19 @@ using System.Text.RegularExpressions;
 namespace Kommit.Analysis;
 
 public record ParsedDiff(
-    List<string> AddedSymbols,
-    List<string> RemovedSymbols,
+    List<string> AddedTypes,
+    List<string> AddedMembers,
+    List<string> RemovedTypes,
+    List<string> RemovedMembers,
     List<string> RenamedSymbols,
     List<string> AddedImports,
     List<string> RemovedImports,
     DiffSignals Signals
-);
+)
+{
+    public List<string> AddedSymbols => [..AddedTypes, ..AddedMembers];
+    public List<string> RemovedSymbols => [..RemovedTypes, ..RemovedMembers];
+};
 
 [Flags]
 public enum DiffSignals
@@ -143,34 +149,48 @@ public partial class DiffParser
 
     public ParsedDiff Parse(string rawDiff)
     {
-        var added = new List<string>();
-        var removed = new List<string>();
+        var addedTypes = new List<string>();
+        var addedMembers = new List<string>();
+        var removedTypes = new List<string>();
+        var removedMembers = new List<string>();
         var addedImports = new List<string>();
         var removedImports = new List<string>();
         var signals = DiffSignals.None;
 
-        // Extract added symbols
-        ExtractMatches(rawDiff, added,
-            CSharpClassRegex(), CSharpMethodRegex(),
-            JsClassRegex(), JsFunctionRegex(), JsArrowFunctionRegex(),
-            PyClassRegex(), PyFunctionRegex(),
-            GoFunctionRegex(), GoTypeRegex(),
-            RustFunctionRegex(), RustTypeRegex());
+        // Extract added types (classes, structs, enums, interfaces, records)
+        ExtractMatches(rawDiff, addedTypes,
+            CSharpClassRegex(), JsClassRegex(),
+            PyClassRegex(), GoTypeRegex(), RustTypeRegex());
 
-        // Extract removed symbols
-        ExtractMatches(rawDiff, removed,
-            CSharpRemovedClassRegex(), CSharpRemovedMethodRegex(),
-            JsRemovedClassRegex(), JsRemovedFunctionRegex(),
-            PyRemovedClassRegex(), PyRemovedFunctionRegex(),
-            GoRemovedFunctionRegex(), GoRemovedTypeRegex(),
-            RustRemovedFunctionRegex(), RustRemovedTypeRegex());
+        // Extract added members (methods, functions)
+        ExtractMatches(rawDiff, addedMembers,
+            CSharpMethodRegex(), JsFunctionRegex(), JsArrowFunctionRegex(),
+            PyFunctionRegex(), GoFunctionRegex(), RustFunctionRegex());
+
+        // Extract removed types
+        ExtractMatches(rawDiff, removedTypes,
+            CSharpRemovedClassRegex(), JsRemovedClassRegex(),
+            PyRemovedClassRegex(), GoRemovedTypeRegex(), RustRemovedTypeRegex());
+
+        // Extract removed members
+        ExtractMatches(rawDiff, removedMembers,
+            CSharpRemovedMethodRegex(), JsRemovedFunctionRegex(),
+            PyRemovedFunctionRegex(), GoRemovedFunctionRegex(), RustRemovedFunctionRegex());
 
         // Imports
         ExtractMatches(rawDiff, addedImports, AddedImportRegex());
         ExtractMatches(rawDiff, removedImports, RemovedImportRegex());
 
-        // Detect renames: symbols removed and added with similar names
-        var renamed = DetectRenames(added, removed);
+        // Detect renames from all symbols combined
+        var allAdded = addedTypes.Concat(addedMembers).ToList();
+        var allRemoved = removedTypes.Concat(removedMembers).ToList();
+        var renamed = DetectRenames(allAdded, allRemoved);
+
+        // Rebuild lists after rename detection removed matched items
+        addedTypes = addedTypes.Where(allAdded.Contains).ToList();
+        addedMembers = addedMembers.Where(allAdded.Contains).ToList();
+        removedTypes = removedTypes.Where(allRemoved.Contains).ToList();
+        removedMembers = removedMembers.Where(allRemoved.Contains).ToList();
 
         // Detect signals
         if (ErrorHandlingRegex().IsMatch(rawDiff)) signals |= DiffSignals.ErrorHandling;
@@ -185,7 +205,8 @@ public partial class DiffParser
         if (StyleRegex().IsMatch(rawDiff)) signals |= DiffSignals.Styling;
         if (SecurityRegex().IsMatch(rawDiff)) signals |= DiffSignals.Security;
 
-        return new ParsedDiff(added, removed, renamed, addedImports, removedImports, signals);
+        return new ParsedDiff(addedTypes, addedMembers, removedTypes, removedMembers,
+            renamed, addedImports, removedImports, signals);
     }
 
     private static void ExtractMatches(string text, List<string> results, params Regex[] patterns)
