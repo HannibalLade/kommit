@@ -32,6 +32,13 @@ class Program
         var config = configService.Load();
         var git = new GitService();
 
+        if (args.Length > 0 && args[0] == "config")
+        {
+            var editor = new ConfigEditor(configService);
+            editor.Run();
+            return 0;
+        }
+
         if (args.Length > 0 && args[0] == "pull")
         {
             git.Pull(config.PullStrategy);
@@ -122,6 +129,7 @@ class Program
         Console.WriteLine("Usage: kommit [command] [options]");
         Console.WriteLine();
         Console.WriteLine("Commands:");
+        Console.WriteLine("  config          Open interactive config editor");
         Console.WriteLine("  push            Push changes using configured strategy");
         Console.WriteLine("  pull            Pull changes using configured strategy");
         Console.WriteLine("  update          Check for and install the latest version");
