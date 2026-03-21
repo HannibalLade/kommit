@@ -16,11 +16,19 @@ A lightweight CLI tool that analyzes your staged git changes, branch name, and f
 
 ## Installation
 
+**macOS / Linux:**
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/HannibalLade/kommit/main/install.sh | bash
 ```
 
-This detects your OS and architecture, downloads the latest release binary, and installs it to `/usr/local/bin` (or `~/.local/bin`).
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/HannibalLade/kommit/main/install.ps1 | iex
+```
+
+Detects your platform, downloads the latest release binary, and installs it. First-time install walks you through configuration.
 
 ### Build from source
 

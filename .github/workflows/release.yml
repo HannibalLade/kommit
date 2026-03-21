@@ -21,6 +21,8 @@ jobs:
             rid: linux-x64
           - os: ubuntu-latest
             rid: linux-arm64
+          - os: windows-latest
+            rid: win-x64
 
     runs-on: ${{ matrix.os }}
 
@@ -41,13 +43,18 @@ jobs:
           -p:PublishTrimmed=true
           -o publish
 
-      - name: Rename binary
+      - name: Rename binary (Unix)
+        if: runner.os != 'Windows'
         run: mv publish/kommit publish/kommit-${{ matrix.rid }}
+
+      - name: Rename binary (Windows)
+        if: runner.os == 'Windows'
+        run: mv publish/kommit.exe publish/kommit-${{ matrix.rid }}.exe
 
       - uses: actions/upload-artifact@v4
         with:
           name: kommit-${{ matrix.rid }}
-          path: publish/kommit-${{ matrix.rid }}
+          path: publish/kommit-${{ matrix.rid }}*
 
   release:
     needs: build
