@@ -106,13 +106,15 @@ public class GitService
 
     public void Push(string strategy = "simple")
     {
+        var needsUpstream = !HasUpstream();
         var args = strategy switch
         {
-            "set-upstream" => HasUpstream()
-                ? "push"
-                : $"push --set-upstream origin {GetBranchName()}",
-            "force-with-lease" => "push --force-with-lease",
-            _ => "push"
+            "force-with-lease" => needsUpstream
+                ? $"push --force-with-lease --set-upstream origin {GetBranchName()}"
+                : "push --force-with-lease",
+            _ => needsUpstream
+                ? $"push --set-upstream origin {GetBranchName()}"
+                : "push"
         };
         RunGit(args);
     }
