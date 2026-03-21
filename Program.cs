@@ -223,13 +223,34 @@ class Program
             _ => new Version(current.Major, current.Minor + 1, 0),
         };
 
-        var tag = $"v{next.Major}.{next.Minor}.{next.Build}";
+        var versionString = $"{next.Major}.{next.Minor}.{next.Build}";
+        var tag = $"v{versionString}";
 
+        // Update .csproj version so the built binary reports the correct version
+        UpdateCsprojVersion(versionString);
+
+        git.StageAll();
+        git.Commit($"chore: bump version to {tag}");
         git.CreateTag(tag);
+        git.Push("simple");
         git.PushTag(tag);
         Console.WriteLine(tag);
 
         return 0;
+    }
+
+    private static void UpdateCsprojVersion(string version)
+    {
+        var csprojFiles = Directory.GetFiles(".", "*.csproj", SearchOption.TopDirectoryOnly);
+        if (csprojFiles.Length == 0) return;
+
+        var csproj = csprojFiles[0];
+        var content = File.ReadAllText(csproj);
+        var updated = System.Text.RegularExpressions.Regex.Replace(
+            content,
+            @"<Version>[^<]*</Version>",
+            $"<Version>{version}</Version>");
+        File.WriteAllText(csproj, updated);
     }
 
     private static string TruncateMessage(string message, int maxLength)
