@@ -4,7 +4,7 @@ A lightweight CLI tool that analyzes your staged git changes, branch name, and f
 
 ## How it works
 
-`kommit` reads your staged diff and branch name, applies heuristic rules to infer the commit type, scope, and description, then runs `git commit -m` with the generated message. No internet connection, no API keys, no dependencies beyond .NET.
+`kommit` reads your staged diff and branch name, applies heuristic rules to infer the commit type, scope, and description, then runs `git commit -m` with the generated message. No LLM, no internet connection needed for commits — just git.
 
 **Heuristic rules:**
 - Branch name prefix (`fix/`, `feat/`, `docs/`, etc.) → commit type
@@ -29,10 +29,12 @@ Requires [.NET 10+](https://dotnet.microsoft.com/download).
 ```sh
 git clone https://github.com/HannibalLade/kommit.git
 cd kommit
-dotnet publish -c Release -r osx-arm64 --self-contained
+dotnet publish kommit.csproj -c Release -r osx-arm64 --self-contained -p:PublishSingleFile=true
 ```
 
 Then move the binary from `bin/Release/net10.0/osx-arm64/publish/kommit` to somewhere on your `$PATH`.
+
+Replace `osx-arm64` with your platform: `osx-x64`, `linux-x64`, or `linux-arm64`.
 
 ## Usage
 
@@ -115,12 +117,14 @@ Create a merge request (GitLab) or pull request (GitHub) from your current branc
 ```sh
 # Create an MR from current branch into develop
 kommit mr develop
-
-# Requires an API token — set it with:
-kommit config
 ```
 
-Automatically detects GitHub vs GitLab from the remote URL, pushes your branch, checks for conflicts, and creates the MR/PR. Supports self-hosted GitLab instances.
+- Automatically detects GitHub vs GitLab from the remote URL
+- Pushes your branch and checks for conflicts before creating
+- **Auto-assigns you** as the assignee
+- **Interactive reviewer picker** — select reviewers from project members
+- If no API token is configured, walks you through creating one
+- Supports self-hosted GitLab instances
 
 ### `kommit config`
 
