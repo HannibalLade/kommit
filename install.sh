@@ -59,4 +59,50 @@ if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
     echo "Then add that line to your ~/.zshrc or ~/.bashrc."
 fi
 
+echo ""
+
+# First-time setup
+CONFIG_FILE="$HOME/.kommitconfig"
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "Let's configure kommit!"
+    echo ""
+
+    # Auto-add
+    printf "Automatically stage all files when none are staged? [y/N] "
+    read -r AUTO_ADD
+    case "$AUTO_ADD" in y|Y) AUTO_ADD="true" ;; *) AUTO_ADD="false" ;; esac
+
+    # Auto-push
+    printf "Automatically push after each commit? [y/N] "
+    read -r AUTO_PUSH
+    case "$AUTO_PUSH" in y|Y) AUTO_PUSH="true" ;; *) AUTO_PUSH="false" ;; esac
+
+    # Auto-pull
+    printf "Automatically pull before each commit? [y/N] "
+    read -r AUTO_PULL
+    case "$AUTO_PULL" in y|Y) AUTO_PULL="true" ;; *) AUTO_PULL="false" ;; esac
+
+    cat > "$CONFIG_FILE" <<EOF
+{
+  "autoAdd": ${AUTO_ADD},
+  "autoPush": ${AUTO_PUSH},
+  "autoPull": ${AUTO_PULL},
+  "pullStrategy": "rebase",
+  "pushStrategy": "simple",
+  "defaultScope": null,
+  "maxCommitLength": 72,
+  "maxStagedFiles": null,
+  "maxStagedLines": null,
+  "apiToken": null
+}
+EOF
+
+    echo ""
+    echo "Config saved to ~/.kommitconfig"
+    echo "You can change these anytime with 'kommit config'."
+else
+    echo "Existing config found at ~/.kommitconfig"
+fi
+
+echo ""
 echo "Run 'kommit --version' to verify."
