@@ -44,6 +44,63 @@ public class GitService
         RunGit($"commit -m \"{message.Replace("\"", "\\\"")}\"");
     }
 
+    public void Pull(string strategy = "rebase")
+    {
+        var args = strategy switch
+        {
+            "rebase" => "pull --rebase",
+            "merge" => "pull",
+            _ => "pull --rebase"
+        };
+        RunGit(args);
+    }
+
+    public void Push(string strategy = "simple")
+    {
+        var args = strategy switch
+        {
+            "set-upstream" => HasUpstream()
+                ? "push"
+                : $"push --set-upstream origin {GetBranchName()}",
+            "force-with-lease" => "push --force-with-lease",
+            _ => "push"
+        };
+        RunGit(args);
+    }
+
+    public void StageFiles(IEnumerable<string> files)
+    {
+        foreach (var file in files)
+            RunGit($"add \"{file}\"");
+    }
+
+    public void UnstageAll()
+    {
+        RunGit("reset HEAD");
+    }
+
+    public int GetStagedLineCount()
+    {
+        var stat = RunGit("diff --cached --numstat");
+        int total = 0;
+        foreach (var line in stat.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = line.Split('\t');
+            if (parts.Length >= 2)
+            {
+                if (int.TryParse(parts[0], out var a)) total += a;
+                if (int.TryParse(parts[1], out var d)) total += d;
+            }
+        }
+        return total;
+    }
+
+    private bool HasUpstream()
+    {
+        var result = RunGit("rev-parse --abbrev-ref --symbolic-full-name @{u}");
+        return !string.IsNullOrWhiteSpace(result);
+    }
+
     private static string RunGit(string arguments)
     {
         var process = new Process

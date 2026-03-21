@@ -1,0 +1,30 @@
+using System.Text.Json.Serialization;
+
+namespace Kommit.Config;
+
+public class KommitConfig
+{
+    [JsonPropertyName("autoPush")]
+    public bool AutoPush { get; set; } = false;
+
+    [JsonPropertyName("autoPull")]
+    public bool AutoPull { get; set; } = false;
+
+    [JsonPropertyName("pullStrategy")]
+    public string PullStrategy { get; set; } = "rebase";
+
+    [JsonPropertyName("pushStrategy")]
+    public string PushStrategy { get; set; } = "simple";
+
+    [JsonPropertyName("defaultScope")]
+    public string? DefaultScope { get; set; } = null;
+
+    [JsonPropertyName("maxCommitLength")]
+    public int MaxCommitLength { get; set; } = 72;
+
+    [JsonPropertyName("maxStagedFiles")]
+    public int? MaxStagedFiles { get; set; } = null;
+
+    [JsonPropertyName("maxStagedLines")]
+    public int? MaxStagedLines { get; set; } = null;
+}
