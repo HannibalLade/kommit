@@ -105,7 +105,6 @@ class Program
         }
 
         var preview = args.Contains("--preview");
-        var customMessage = GetFlag(args, "-m");
 
         // Detached HEAD warning
         var branch = git.GetBranchName();
@@ -149,9 +148,15 @@ class Program
 
         string finalMessage;
 
-        if (customMessage is not null)
+        if (!config.AutoGenerate)
         {
-            finalMessage = customMessage;
+            var edited = PromptEditor.Edit("Commit message: ", "");
+            if (edited is null)
+            {
+                Console.WriteLine("Aborted.");
+                return 1;
+            }
+            finalMessage = edited;
         }
         else
         {
@@ -178,23 +183,23 @@ class Program
                 message = message with { Scope = config.DefaultScope };
 
             finalMessage = TruncateMessage(message.ToString(), config.MaxCommitLength);
+
+            if (!preview)
+            {
+                var edited = PromptEditor.Edit("Commit message (enter to accept): ", finalMessage);
+                if (edited is null)
+                {
+                    Console.WriteLine("Aborted.");
+                    return 1;
+                }
+                finalMessage = edited;
+            }
         }
 
         if (preview)
         {
             Console.WriteLine(finalMessage);
             return 0;
-        }
-
-        if (customMessage is null)
-        {
-            var edited = PromptEditor.Edit("Commit message (enter to accept): ", finalMessage);
-            if (edited is null)
-            {
-                Console.WriteLine("Aborted.");
-                return 1;
-            }
-            finalMessage = edited;
         }
 
         git.Commit(finalMessage);
@@ -208,14 +213,6 @@ class Program
         }
 
         return 0;
-    }
-
-    private static string? GetFlag(string[] args, string flag)
-    {
-        var index = Array.IndexOf(args, flag);
-        if (index >= 0 && index + 1 < args.Length)
-            return args[index + 1];
-        return null;
     }
 
     private static string TruncateMessage(string message, int maxLength)
@@ -250,12 +247,12 @@ class Program
         Console.WriteLine("  update          Check for and install the latest version");
         Console.WriteLine();
         Console.WriteLine("Options:");
-        Console.WriteLine("  -m \"message\"    Use a custom commit message instead of auto-generating");
         Console.WriteLine("  --preview       Preview what would happen without making changes");
         Console.WriteLine("  --version       Show the current version");
         Console.WriteLine("  -h, --help      Show this help message");
         Console.WriteLine();
         Console.WriteLine("Config: ~/.kommit/config.json");
+        Console.WriteLine("  autoGenerate    Auto-generate commit messages from diff (default: true)");
         Console.WriteLine("  autoAdd         Prompt to stage all files if none staged (default: false)");
         Console.WriteLine("  autoPush        Auto-push after commit (default: false)");
         Console.WriteLine("  autoPull        Auto-pull before commit (default: false)");

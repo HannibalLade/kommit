@@ -61,6 +61,7 @@ if (-not (Test-Path $configFile)) {
 
     $config = @"
 {
+  "autoGenerate": true,
   "autoAdd": $autoAddVal,
   "autoPush": $autoPushVal,
   "autoPull": $autoPullVal,

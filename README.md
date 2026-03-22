@@ -52,9 +52,10 @@ Analyzes your staged diff, branch name, and file structure to generate a [Conven
 
 ```sh
 kommit                          # generate message, edit, commit
-kommit -m "feat: new login"     # skip generation, commit directly
 kommit --preview                # show what would be generated, don't commit
 ```
+
+You always get an editable prompt before committing — accept the suggestion with Enter, or clear it and type your own. If you'd rather always write your own messages, set `autoGenerate` to `false` in the config.
 
 The message generator uses heuristics — branch prefix, diff content, symbol detection across C#/JS/TS/Python/Go/Rust, file types, line ratios — to infer the type, scope, and description. No LLM, no internet needed.
 
@@ -171,6 +172,7 @@ Config is stored in `~/.kommit/config.json`. Edit it directly or use `kommit con
 
 | Option | Default | Description |
 |---|---|---|
+| `autoGenerate` | `true` | Auto-generate commit messages from your diff. When off, you write the message from scratch. |
 | `autoAdd` | `false` | Prompt to stage all files if none are staged |
 | `autoPush` | `false` | Auto-push after committing |
 | `autoPull` | `false` | Auto-pull before committing |

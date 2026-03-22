@@ -86,6 +86,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
 
     cat > "$CONFIG_FILE" <<EOF
 {
+  "autoGenerate": true,
   "autoAdd": ${AUTO_ADD},
   "autoPush": ${AUTO_PUSH},
   "autoPull": ${AUTO_PULL},

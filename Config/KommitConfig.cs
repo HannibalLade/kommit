@@ -4,6 +4,9 @@ namespace Kommit.Config;
 
 public class KommitConfig
 {
+    [JsonPropertyName("autoGenerate")]
+    public bool AutoGenerate { get; set; } = true;
+
     [JsonPropertyName("autoPush")]
     public bool AutoPush { get; set; } = false;
 
