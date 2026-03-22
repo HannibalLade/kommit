@@ -217,10 +217,13 @@ public static class MergeCommand
     private static int CommitAndPush(GitService git, KommitConfig config, ConfigService configService)
     {
         var currentBranch = git.GetBranchName();
-        var stagedFiles = git.GetStagedFileNames();
-        var description = stagedFiles.Count == 1
-            ? $"resolve merge conflict in {Path.GetFileName(stagedFiles[0])}"
-            : $"resolve merge conflicts in {stagedFiles.Count} files";
+        var changedFiles = git.GetMergeChangedFiles();
+        var description = changedFiles.Count switch
+        {
+            0 => "resolve merge conflicts",
+            1 => $"resolve merge conflict in {Path.GetFileName(changedFiles[0])}",
+            _ => $"resolve merge conflicts in {changedFiles.Count} files"
+        };
         var message = $"fix: {description}";
 
         git.Commit(message);

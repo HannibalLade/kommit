@@ -46,9 +46,9 @@ public class KommitConfig
 
     public string? GetTokenForPlatform(Git.Platform platform) => platform switch
     {
-        Git.Platform.GitHub => GithubToken ?? ApiToken,
+        Git.Platform.GitHub => GithubToken,
         Git.Platform.GitLab => GitlabToken ?? ApiToken,
-        _ => ApiToken
+        _ => null
     };
 
     public void SetTokenForPlatform(Git.Platform platform, string token)
