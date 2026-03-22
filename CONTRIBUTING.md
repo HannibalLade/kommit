@@ -10,7 +10,6 @@
 
 ## Code Style
 
-- Follow .NET naming conventions (PascalCase for public, camelCase for private)
-- Keep methods under 30 lines
-- Write unit tests for all new features
-- Use nullable reference types
+- Use K&R brace style
+- Explicit types over var
+- XML docs on all public members
