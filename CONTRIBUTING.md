@@ -10,6 +10,6 @@
 
 ## Code Style
 
-- Use Allman brace style
-- Prefer var when type is obvious
-- No regions
+- Follow .NET naming conventions
+- Keep methods short and readable
+- Always write tests
