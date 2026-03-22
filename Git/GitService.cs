@@ -110,6 +110,12 @@ public class GitService
         return output.Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
     }
 
+    public List<string> GetMergeChangedFiles()
+    {
+        var (output, _, _) = RunGitRaw("diff --name-only HEAD");
+        return output.Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
+    }
+
     public bool HasStagedChanges()
     {
         var (output, _, _) = RunGitRaw("diff --cached --name-only");
