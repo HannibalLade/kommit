@@ -10,6 +10,6 @@
 
 ## Code Style
 
-- Use standard C# formatting (dotnet format)
-- Maximum line length: 120 characters
-- Always add XML doc comments to public APIs
+- Use Allman brace style
+- Prefer var when type is obvious
+- No regions
