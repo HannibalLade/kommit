@@ -123,7 +123,7 @@ kommit undo
 
 ### `kommit tag` — version bump and release
 
-Bump the version, update `.csproj`, commit, tag, and push — with step-by-step output.
+Bump the version, update the project file, commit, tag, and push — with step-by-step output.
 
 ```sh
 kommit tag              # minor bump (v0.2.0 → v0.3.0)
@@ -131,6 +131,20 @@ kommit tag -major       # major bump (v0.2.0 → v1.0.0)
 kommit tag -patch       # patch bump (v0.2.0 → v0.2.1)
 kommit tag --preview    # show what would happen without doing it
 ```
+
+Automatically detects and updates the version in your project file:
+
+| File | Ecosystem |
+|---|---|
+| `*.csproj` | .NET / C# |
+| `package.json` | Node.js / JavaScript / TypeScript |
+| `pyproject.toml`, `setup.py`, `setup.cfg` | Python |
+| `Cargo.toml` | Rust |
+| `build.gradle`, `build.gradle.kts` | Java / Kotlin (Gradle) |
+| `pom.xml` | Java (Maven) |
+| `go.mod` | Go (tag only — Go uses git tags as versions) |
+
+If no project file is found, it still creates and pushes the tag.
 
 ### `kommit push` / `kommit pull`
 
