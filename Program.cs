@@ -126,8 +126,12 @@ class Program
             Console.WriteLine("Pulling latest changes...");
             git.Pull(config.PullStrategy);
 
-            if (needsStash)
-                git.StashPop();
+            if (needsStash && !git.StashPop())
+            {
+                Console.WriteLine("Warning: Could not re-apply your changes after pulling. Your changes are in 'git stash'.");
+                Console.WriteLine("Run 'git stash pop' manually to recover them.");
+                return 1;
+            }
         }
 
         if (!git.HasStagedChanges() && config.AutoAdd && !preview)

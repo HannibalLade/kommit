@@ -49,9 +49,10 @@ public class GitService
         RunGit("stash");
     }
 
-    public void StashPop()
+    public bool StashPop()
     {
-        RunGit("stash pop");
+        var (_, _, exitCode) = RunGitRaw("stash pop");
+        return exitCode == 0;
     }
 
     public string GetBranchName()
