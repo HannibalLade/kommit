@@ -23,7 +23,8 @@ public class ConfigEditor
         new("maxCommitLength", "Max commit message length", ConfigItemType.Int),
         new("maxStagedFiles", "File count threshold for split", ConfigItemType.NullableInt),
         new("maxStagedLines", "Line count threshold for split", ConfigItemType.NullableInt),
-        new("apiToken", "GitHub/GitLab API token for MRs", ConfigItemType.String),
+        new("githubToken", "GitHub API token for PRs", ConfigItemType.String),
+        new("gitlabToken", "GitLab API token for MRs", ConfigItemType.String),
     };
 
     public ConfigEditor(ConfigService configService)
@@ -124,7 +125,8 @@ public class ConfigEditor
             "maxCommitLength" => _config.MaxCommitLength.ToString(),
             "maxStagedFiles" => _config.MaxStagedFiles?.ToString() ?? "(none)",
             "maxStagedLines" => _config.MaxStagedLines?.ToString() ?? "(none)",
-            "apiToken" => string.IsNullOrEmpty(_config.ApiToken) ? "(none)" : "***",
+            "githubToken" => string.IsNullOrEmpty(_config.GithubToken) ? "(none)" : "***",
+            "gitlabToken" => string.IsNullOrEmpty(_config.GitlabToken) ? "(none)" : "***",
             _ => ""
         };
     }
@@ -207,8 +209,11 @@ public class ConfigEditor
                 if (string.IsNullOrEmpty(value)) _config.MaxStagedLines = null;
                 else if (int.TryParse(value, out var ml) && ml > 0) _config.MaxStagedLines = ml;
                 break;
-            case "apiToken":
-                _config.ApiToken = string.IsNullOrEmpty(value) ? null : value;
+            case "githubToken":
+                _config.GithubToken = string.IsNullOrEmpty(value) ? null : value;
+                break;
+            case "gitlabToken":
+                _config.GitlabToken = string.IsNullOrEmpty(value) ? null : value;
                 break;
         }
     }

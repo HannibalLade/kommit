@@ -71,7 +71,8 @@ if (-not (Test-Path $configFile)) {
   "maxCommitLength": 72,
   "maxStagedFiles": null,
   "maxStagedLines": null,
-  "apiToken": null
+  "githubToken": null,
+  "gitlabToken": null
 }
 "@
     Set-Content -Path $configFile -Value $config

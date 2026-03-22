@@ -262,5 +262,7 @@ class Program
         Console.WriteLine("  maxCommitLength Max commit message length (default: 72)");
         Console.WriteLine("  maxStagedFiles  File count threshold for interactive split (default: null)");
         Console.WriteLine("  maxStagedLines  Line count threshold for interactive split (default: null)");
+        Console.WriteLine("  githubToken     GitHub API token for pull requests");
+        Console.WriteLine("  gitlabToken     GitLab API token for merge requests");
     }
 }

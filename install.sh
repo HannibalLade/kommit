@@ -96,7 +96,8 @@ if [ ! -f "$CONFIG_FILE" ]; then
   "maxCommitLength": 72,
   "maxStagedFiles": null,
   "maxStagedLines": null,
-  "apiToken": null
+  "githubToken": null,
+  "gitlabToken": null
 }
 EOF
 

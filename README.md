@@ -202,7 +202,8 @@ Config is stored in `~/.kommit/config.json`. Edit it directly or use `kommit con
 | `maxCommitLength` | `72` | Max commit message length before truncation |
 | `maxStagedFiles` | `null` | File count threshold to trigger interactive commit splitting |
 | `maxStagedLines` | `null` | Line count threshold to trigger interactive commit splitting |
-| `apiToken` | `null` | GitHub/GitLab API token for merge requests |
+| `githubToken` | `null` | GitHub API token for pull requests |
+| `gitlabToken` | `null` | GitLab API token for merge requests |
 
 ## License
 

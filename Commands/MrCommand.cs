@@ -34,14 +34,16 @@ public static class MrCommand
 
         var platformName = remote.Platform == Platform.GitHub ? "pull request" : "merge request";
 
-        if (string.IsNullOrEmpty(config.ApiToken))
+        var token = config.GetTokenForPlatform(remote.Platform);
+        if (string.IsNullOrEmpty(token))
         {
             config = PromptForApiToken(config, configService, remote.Platform);
-            if (string.IsNullOrEmpty(config.ApiToken))
+            token = config.GetTokenForPlatform(remote.Platform);
+            if (string.IsNullOrEmpty(token))
                 return 1;
         }
 
-        var service = new MergeRequestService(config.ApiToken);
+        var service = new MergeRequestService(token);
 
         // Get current user for auto-assignee
         Console.WriteLine("Fetching project info...");
@@ -179,13 +181,14 @@ public static class MrCommand
             return true;
         }
 
-        if (string.IsNullOrEmpty(config.ApiToken))
+        var token = config.GetTokenForPlatform(remote.Platform);
+        if (string.IsNullOrEmpty(token))
         {
             Console.Error.WriteLine("No API token configured. Run 'kommit mr' to set one up.");
             return true;
         }
 
-        var service = new MergeRequestService(config.ApiToken);
+        var service = new MergeRequestService(token);
         CreateMr(git, config, service, remote, sourceBranch, targetBranch, reviewers, currentUser);
         return true;
     }
@@ -463,7 +466,7 @@ public static class MrCommand
             return config;
         }
 
-        config.ApiToken = token;
+        config.SetTokenForPlatform(platform, token);
         configService.Save(config);
         Console.WriteLine("Token saved to ~/.kommit/config.json\n");
 
