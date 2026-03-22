@@ -229,7 +229,7 @@ class Program
     {
         var version = UpdateService.GetCurrentVersion();
         Console.WriteLine($"kommit {version.Major}.{version.Minor}.{version.Build}");
-        Console.WriteLine("A lightweight CLI tool that generates Conventional Commits messages from your staged changes.");
+        Console.WriteLine("A git workflow tool for commits, merges, pull requests, tagging, and conflict resolution.");
         Console.WriteLine();
         Console.WriteLine("Usage: kommit [command] [options]");
         Console.WriteLine();
