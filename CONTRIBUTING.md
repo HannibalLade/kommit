@@ -10,6 +10,7 @@
 
 ## Code Style
 
-- Use Allman brace style
-- Prefer var when type is obvious
-- No regions
+- Follow .NET naming conventions (PascalCase for public, camelCase for private)
+- Keep methods under 30 lines
+- Write unit tests for all new features
+- Use nullable reference types
