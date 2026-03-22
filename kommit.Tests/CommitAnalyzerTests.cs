@@ -57,7 +57,6 @@ public class CommitAnalyzerTests
     public void Analyze_NoBranchPrefix_FallsThrough(string branch)
     {
         var result = _analyzer.Analyze(branch, MakeDiff());
-        // Should not be null, should fall through to other heuristics
         Assert.NotNull(result.Type);
     }
 
@@ -100,7 +99,6 @@ public class CommitAnalyzerTests
     {
         var diff = MakeDiff(files: ["README.md", "src/Foo.cs"]);
         var result = _analyzer.Analyze("main", diff);
-        // Should not be "docs" since there's a non-docs file
         Assert.NotEqual("docs", result.Type);
     }
 
@@ -185,36 +183,51 @@ public class CommitAnalyzerTests
         Assert.Null(result.Scope);
     }
 
-    // ── Description inference ──
+    // ── Description — single file shows filename ──
 
     [Fact]
     public void Analyze_SingleFile_DescriptionContainsFileName()
     {
-        var diff = MakeDiff(files: ["src/Foo.cs"], added: 10, deleted: 2);
+        var diff = MakeDiff(files: ["src/Foo.cs"]);
         var result = _analyzer.Analyze("main", diff);
         Assert.Contains("Foo.cs", result.Description);
     }
 
+    // ── Description — 2-3 files lists all filenames ──
+
     [Fact]
     public void Analyze_TwoOrThreeFiles_DescriptionListsAllFileNames()
     {
-        var diff = MakeDiff(files: ["A.cs", "B.cs", "C.cs"], added: 5, deleted: 2);
+        var diff = MakeDiff(files: ["A.cs", "B.cs", "C.cs"]);
         var result = _analyzer.Analyze("main", diff);
         Assert.Contains("A.cs", result.Description);
         Assert.Contains("B.cs", result.Description);
         Assert.Contains("C.cs", result.Description);
     }
 
+    // ── Description — many files shows count ──
+
     [Fact]
     public void Analyze_ManyFiles_DescriptionShowsCount()
     {
         var files = Enumerable.Range(1, 5).Select(i => $"File{i}.cs").ToList();
-        var diff = MakeDiff(files: files, added: 10, deleted: 3);
+        var diff = MakeDiff(files: files);
         var result = _analyzer.Analyze("main", diff);
         Assert.Contains("5 files", result.Description);
     }
 
-    // ── Action words in description ──
+    // ── Description — same directory shows directory name ──
+
+    [Fact]
+    public void Analyze_AllFilesInSameDir_DescriptionShowsDirectory()
+    {
+        var diff = MakeDiff(files: ["Commands/A.cs", "Commands/B.cs", "Commands/C.cs", "Commands/D.cs"]);
+        var result = _analyzer.Analyze("main", diff);
+        Assert.Contains("Commands", result.Description);
+        Assert.DoesNotContain("files", result.Description);
+    }
+
+    // ── Description — action verb from line ratio ──
 
     [Fact]
     public void Analyze_OnlyAdded_DescriptionStartsWithAdd()
@@ -233,27 +246,62 @@ public class CommitAnalyzerTests
     }
 
     [Fact]
-    public void Analyze_MoreDeletedThanAdded_DescriptionStartsWithSimplify()
-    {
-        var diff = MakeDiff(files: ["Code.cs"], added: 2, deleted: 10);
-        var result = _analyzer.Analyze("main", diff);
-        Assert.StartsWith("simplify", result.Description);
-    }
-
-    [Fact]
-    public void Analyze_MoreAddedThanDeleted_DescriptionStartsWithUpdate()
+    public void Analyze_MixedChanges_DescriptionStartsWithUpdate()
     {
         var diff = MakeDiff(files: ["Code.cs"], added: 5, deleted: 3);
         var result = _analyzer.Analyze("main", diff);
         Assert.StartsWith("update", result.Description);
     }
 
+    // ── Description — FileChangeKind drives action ──
+
     [Fact]
-    public void Analyze_ManyMoreAddedThanDeleted_DescriptionStartsWithImplement()
+    public void Analyze_FileChangeKindAdded_DescriptionStartsWithAdd()
     {
-        var diff = MakeDiff(files: ["Code.cs"], added: 10, deleted: 2);
+        var diff = new DiffSummary(["NewFile.cs"], 10, 0, "diff content")
+        {
+            FileChanges = [new FileChange("NewFile.cs", FileChangeKind.Added)]
+        };
         var result = _analyzer.Analyze("main", diff);
-        Assert.StartsWith("implement", result.Description);
+        Assert.StartsWith("add", result.Description);
+    }
+
+    [Fact]
+    public void Analyze_FileChangeKindDeleted_DescriptionStartsWithRemove()
+    {
+        var diff = new DiffSummary(["OldFile.cs"], 0, 10, "diff content")
+        {
+            FileChanges = [new FileChange("OldFile.cs", FileChangeKind.Deleted)]
+        };
+        var result = _analyzer.Analyze("main", diff);
+        Assert.StartsWith("remove", result.Description);
+    }
+
+    [Fact]
+    public void Analyze_FileChangeKindRenamed_DescriptionStartsWithRename()
+    {
+        var diff = new DiffSummary(["NewName.cs"], 1, 1, "diff content")
+        {
+            FileChanges = [new FileChange("NewName.cs", FileChangeKind.Renamed)]
+        };
+        var result = _analyzer.Analyze("main", diff);
+        Assert.StartsWith("rename", result.Description);
+    }
+
+    // ── Description — multiple directories lists them ──
+
+    [Fact]
+    public void Analyze_FilesAcrossDirectories_DescriptionListsDirectories()
+    {
+        var diff = MakeDiff(files: [
+            "Commands/A.cs", "Commands/B.cs",
+            "Git/C.cs", "Git/D.cs",
+            "Config/E.cs"
+        ]);
+        var result = _analyzer.Analyze("main", diff);
+        Assert.Contains("Commands", result.Description);
+        Assert.Contains("Git", result.Description);
+        Assert.Contains("Config", result.Description);
     }
 
     // ── CommitMessage.ToString() ──
