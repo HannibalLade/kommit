@@ -10,6 +10,7 @@
 
 ## Code Style
 
-- Use standard C# formatting (dotnet format)
-- Maximum line length: 120 characters
-- Always add XML doc comments to public APIs
+- Follow .NET naming conventions (PascalCase for public, camelCase for private)
+- Keep methods under 30 lines
+- Write unit tests for all new features
+- Use nullable reference types
