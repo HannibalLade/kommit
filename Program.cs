@@ -92,9 +92,9 @@ class Program
                 case "tag":
                     return TagCommand.Run(args, git, args.Contains("--preview"));
                 case "merge":
-                    return MergeCommand.Run(args, git, config);
+                    return MergeCommand.Run(args, git, config, configService);
                 case "continue":
-                    return MergeCommand.Continue(git, config);
+                    return MergeCommand.Continue(git, config, configService);
                 case "mr":
                     return MrCommand.Run(args, git, config, configService);
                 case "undo":

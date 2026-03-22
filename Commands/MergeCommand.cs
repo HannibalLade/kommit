@@ -5,7 +5,7 @@ namespace Kommit.Commands;
 
 public static class MergeCommand
 {
-    public static int Run(string[] args, GitService git, KommitConfig config)
+    public static int Run(string[] args, GitService git, KommitConfig config, ConfigService configService)
     {
         var useIncoming = args.Contains("-incoming");
         var useCurrent = args.Contains("-current");
@@ -41,10 +41,10 @@ public static class MergeCommand
             Console.WriteLine("Merge has conflicts.\n");
         }
 
-        return ResolveConflicts(git, config, useIncoming, useCurrent);
+        return ResolveConflicts(git, config, configService, useIncoming, useCurrent);
     }
 
-    public static int Continue(GitService git, KommitConfig config)
+    public static int Continue(GitService git, KommitConfig config, ConfigService configService)
     {
         if (!git.IsMergeInProgress())
         {
@@ -75,7 +75,7 @@ public static class MergeCommand
         if (conflicts.Count == 0)
         {
             Console.WriteLine("All conflicts resolved.");
-            return CommitAndPush(git, config);
+            return CommitAndPush(git, config, configService);
         }
 
         Console.WriteLine($"{conflicts.Count} conflict(s) still unresolved:\n");
@@ -100,13 +100,13 @@ public static class MergeCommand
         return 1;
     }
 
-    private static int ResolveConflicts(GitService git, KommitConfig config, bool useIncoming, bool useCurrent)
+    private static int ResolveConflicts(GitService git, KommitConfig config, ConfigService configService, bool useIncoming, bool useCurrent)
     {
         var conflicts = git.GetConflictedFiles();
         if (conflicts.Count == 0)
         {
             Console.WriteLine("No conflicted files found.");
-            return CommitAndPush(git, config);
+            return CommitAndPush(git, config, configService);
         }
 
         // Bulk resolve with -incoming or -current
@@ -132,7 +132,7 @@ public static class MergeCommand
 
             git.StageFiles(conflicts);
             Console.WriteLine(useIncoming ? "Accepted all incoming changes." : "Kept all current changes.");
-            return CommitAndPush(git, config);
+            return CommitAndPush(git, config, configService);
         }
 
         // Interactive per-file resolution
@@ -190,7 +190,7 @@ public static class MergeCommand
             return 1;
         }
 
-        return CommitAndPush(git, config);
+        return CommitAndPush(git, config, configService);
     }
 
     private static bool FileHasConflictMarkers(string filePath)
@@ -214,7 +214,7 @@ public static class MergeCommand
         GitService.OpenInVSCode(filesWithLines);
     }
 
-    private static int CommitAndPush(GitService git, KommitConfig config)
+    private static int CommitAndPush(GitService git, KommitConfig config, ConfigService configService)
     {
         var currentBranch = git.GetBranchName();
         var stagedFiles = git.GetStagedFileNames();
@@ -232,7 +232,7 @@ public static class MergeCommand
         Console.WriteLine("Done. If you had an MR, it should now be conflict-free.");
 
         // Check if there's a pending MR to resume
-        MrCommand.TryResumePendingMr(git, config);
+        MrCommand.TryResumePendingMr(git, config, configService);
 
         return 0;
     }

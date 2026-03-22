@@ -158,7 +158,7 @@ public static class MrCommand
     /// Resume MR creation after conflict resolution via kommit continue.
     /// Returns true if a pending MR was found and handled.
     /// </summary>
-    public static bool TryResumePendingMr(GitService git, KommitConfig config)
+    public static bool TryResumePendingMr(GitService git, KommitConfig config, ConfigService configService)
     {
         if (!File.Exists(PendingMrPath))
             return false;
@@ -184,8 +184,10 @@ public static class MrCommand
         var token = config.GetTokenForPlatform(remote.Platform);
         if (string.IsNullOrEmpty(token))
         {
-            Console.Error.WriteLine("No API token configured. Run 'kommit mr' to set one up.");
-            return true;
+            config = PromptForApiToken(config, configService, remote.Platform);
+            token = config.GetTokenForPlatform(remote.Platform);
+            if (string.IsNullOrEmpty(token))
+                return true;
         }
 
         var service = new MergeRequestService(token);
