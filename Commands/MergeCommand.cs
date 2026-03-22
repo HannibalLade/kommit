@@ -52,7 +52,26 @@ public static class MergeCommand
             return 1;
         }
 
+        // Auto-stage files that were resolved (no more conflict markers)
         var conflicts = git.GetConflictedFiles();
+        var autoStaged = new List<string>();
+        foreach (var file in conflicts)
+        {
+            if (!FileHasConflictMarkers(file))
+            {
+                git.StageFiles(new[] { file });
+                autoStaged.Add(file);
+            }
+        }
+        if (autoStaged.Count > 0)
+        {
+            foreach (var file in autoStaged)
+                Console.WriteLine($"Staged resolved file: {file}");
+            Console.WriteLine();
+        }
+
+        // Re-check after staging
+        conflicts = git.GetConflictedFiles();
         if (conflicts.Count == 0)
         {
             Console.WriteLine("All conflicts resolved.");
@@ -172,6 +191,17 @@ public static class MergeCommand
         }
 
         return CommitAndPush(git, config);
+    }
+
+    private static bool FileHasConflictMarkers(string filePath)
+    {
+        if (!File.Exists(filePath)) return false;
+        foreach (var line in File.ReadLines(filePath))
+        {
+            if (line.StartsWith("<<<<<<<") || line.StartsWith(">>>>>>>"))
+                return true;
+        }
+        return false;
     }
 
     private static void OpenConflictsInVSCode(IEnumerable<string> files)
