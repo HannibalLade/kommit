@@ -66,15 +66,30 @@ public static class MrCommand
             var conflicts = git.GetConflictedFiles();
             Console.WriteLine($"\nConflicts detected with {targetBranch} ({conflicts.Count} file(s)):");
             foreach (var file in conflicts)
-                Console.WriteLine($"  - {file}");
+            {
+                var line = GitService.GetFirstConflictLine(file);
+                Console.WriteLine($"  - {file}:{line}");
+            }
 
             git.AbortMerge();
+
+            Console.Write($"\nOpen in VS Code to resolve? [y/N] ");
+            var resolveAnswer = Console.ReadLine()?.Trim();
+            if (resolveAnswer?.Equals("y", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                // Re-start merge so user can fix conflicts
+                git.StartMerge($"origin/{targetBranch}");
+                var filesWithLines = conflicts.Select(f => $"{f}:{GitService.GetFirstConflictLine(f)}");
+                GitService.OpenInVSCode(filesWithLines);
+                Console.WriteLine("Fix the conflicts in VS Code, then run 'kommit continue'.");
+                return 1;
+            }
 
             Console.Write($"\nCreate {platformName} anyway? Conflicts will be visible on the remote. [y/N] ");
             var answer = Console.ReadLine()?.Trim();
             if (!answer?.Equals("y", StringComparison.OrdinalIgnoreCase) == true)
             {
-                Console.WriteLine("Aborted. Use 'kommit merge' to resolve conflicts locally first.");
+                Console.WriteLine("Aborted.");
                 return 1;
             }
         }

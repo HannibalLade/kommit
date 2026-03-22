@@ -93,6 +93,8 @@ class Program
                     return TagCommand.Run(args, git, args.Contains("--preview"));
                 case "merge":
                     return MergeCommand.Run(args, git, config);
+                case "continue":
+                    return MergeCommand.Continue(git, config);
                 case "mr":
                     return MrCommand.Run(args, git, config, configService);
                 case "undo":
@@ -233,6 +235,7 @@ class Program
         Console.WriteLine();
         Console.WriteLine("Commands:");
         Console.WriteLine("  config          Open interactive config editor");
+        Console.WriteLine("  continue        Resume a merge after resolving conflicts");
         Console.WriteLine("  merge <branch>  Merge a branch into current branch");
         Console.WriteLine("    -incoming       Accept all incoming changes (skip interactive)");
         Console.WriteLine("    -current        Keep all current changes (skip interactive)");

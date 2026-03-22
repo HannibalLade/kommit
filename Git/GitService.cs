@@ -104,6 +104,12 @@ public class GitService
         return new DiffSummary(files, added, deleted, diff) { FileChanges = fileChanges };
     }
 
+    public List<string> GetStagedFileNames()
+    {
+        var (output, _, _) = RunGitRaw("diff --cached --name-only");
+        return output.Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
+    }
+
     public bool HasStagedChanges()
     {
         var (output, _, _) = RunGitRaw("diff --cached --name-only");
@@ -186,6 +192,34 @@ public class GitService
     {
         var (output, _, _) = RunGitRaw("diff --name-only --diff-filter=U");
         return output.Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
+    }
+
+    public static int GetFirstConflictLine(string filePath)
+    {
+        if (!File.Exists(filePath)) return 1;
+        var lines = File.ReadAllLines(filePath);
+        for (var i = 0; i < lines.Length; i++)
+        {
+            if (lines[i].StartsWith("<<<<<<<"))
+                return i + 1;
+        }
+        return 1;
+    }
+
+    public static void OpenInVSCode(IEnumerable<string> filesWithLines)
+    {
+        var args = string.Join(" ", filesWithLines.Select(f => $"--goto \"{f}\""));
+        var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "code",
+                Arguments = args,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }
+        };
+        process.Start();
     }
 
     public bool IsMergeInProgress()
