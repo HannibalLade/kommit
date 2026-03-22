@@ -54,7 +54,7 @@ kommit
 kommit -m "feat: redesign the auth flow"
 
 # Preview the commit message without committing
-kommit --dry-run
+kommit --preview
 
 # Preview commit message and staged files
 kommit status
@@ -155,7 +155,7 @@ kommit update
 
 ## Configuration
 
-Config is stored in `~/.kommitconfig` (JSON). You can edit it directly or use `kommit config`.
+Config is stored in `~/.kommit/config.json`. You can edit it directly or use `kommit config`.
 
 ```json
 {

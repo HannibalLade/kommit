@@ -74,14 +74,22 @@ class Program
                         return 0;
                     }
                     git.Pull(config.PullStrategy);
+                    UndoCommand.RecordCommand("pull");
                     Console.WriteLine("Pull complete.");
                     return 0;
                 case "push":
+                    if (args.Contains("--preview"))
+                    {
+                        Console.WriteLine($"[preview] Would push to origin using strategy: {config.PushStrategy}");
+                        return 0;
+                    }
+                    Console.WriteLine($"Pushing to origin ({config.PushStrategy})...");
                     git.Push(config.PushStrategy);
+                    UndoCommand.RecordCommand("push");
                     Console.WriteLine("Push complete.");
                     return 0;
                 case "tag":
-                    return TagCommand.Run(args, git);
+                    return TagCommand.Run(args, git, args.Contains("--preview"));
                 case "merge":
                     return MergeCommand.Run(args, git, config);
                 case "mr":
@@ -93,7 +101,7 @@ class Program
             }
         }
 
-        var dryRun = args.Contains("--dry-run");
+        var preview = args.Contains("--preview");
         var customMessage = GetFlag(args, "-m");
 
         // Detached HEAD warning
@@ -107,7 +115,7 @@ class Program
                 return 1;
         }
 
-        if (config.AutoPull && !dryRun && git.HasUpstream())
+        if (config.AutoPull && !preview && git.HasUpstream())
         {
             var needsStash = git.HasUnstagedChanges();
             if (needsStash)
@@ -120,7 +128,7 @@ class Program
                 git.StashPop();
         }
 
-        if (!git.HasStagedChanges() && config.AutoAdd && !dryRun)
+        if (!git.HasStagedChanges() && config.AutoAdd && !preview)
         {
             Console.Write("No staged changes. Stage all files? [Y/n] ");
             var answer = Console.ReadLine()?.Trim();
@@ -150,9 +158,9 @@ class Program
             var splitter = new CommitSplitter(git, analyzer, config);
             if (splitter.ShouldSplit(diff))
             {
-                splitter.RunInteractiveSplit(branch, diff, dryRun);
+                splitter.RunInteractiveSplit(branch, diff, preview);
 
-                if (!dryRun && config.AutoPush)
+                if (!preview && config.AutoPush)
                 {
                     git.Push(config.PushStrategy);
                     Console.WriteLine("Pushed.");
@@ -169,13 +177,14 @@ class Program
             finalMessage = TruncateMessage(message.ToString(), config.MaxCommitLength);
         }
 
-        if (dryRun)
+        if (preview)
         {
             Console.WriteLine(finalMessage);
             return 0;
         }
 
         git.Commit(finalMessage);
+        UndoCommand.RecordCommand("commit");
         Console.WriteLine(finalMessage);
 
         if (config.AutoPush)
@@ -222,16 +231,16 @@ class Program
         Console.WriteLine("  tag             Bump minor version and push tag");
         Console.WriteLine("    -major          Bump major version instead");
         Console.WriteLine("    -patch          Bump patch version instead");
-        Console.WriteLine("  undo            Undo the last commit (keeps changes staged)");
+        Console.WriteLine("  undo            Undo the last kommit command");
         Console.WriteLine("  update          Check for and install the latest version");
         Console.WriteLine();
         Console.WriteLine("Options:");
         Console.WriteLine("  -m \"message\"    Use a custom commit message instead of auto-generating");
-        Console.WriteLine("  --dry-run       Preview the commit message without committing");
+        Console.WriteLine("  --preview       Preview what would happen without making changes");
         Console.WriteLine("  --version       Show the current version");
         Console.WriteLine("  -h, --help      Show this help message");
         Console.WriteLine();
-        Console.WriteLine("Config: ~/.kommitconfig (JSON)");
+        Console.WriteLine("Config: ~/.kommit/config.json");
         Console.WriteLine("  autoAdd         Prompt to stage all files if none staged (default: false)");
         Console.WriteLine("  autoPush        Auto-push after commit (default: false)");
         Console.WriteLine("  autoPull        Auto-pull before commit (default: false)");

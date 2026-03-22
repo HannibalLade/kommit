@@ -43,7 +43,9 @@ if ($userPath -notlike "*$installDir*") {
 Write-Host ""
 
 # First-time setup
-$configFile = "$env:USERPROFILE\.kommitconfig"
+$kommitDir = "$env:USERPROFILE\.kommit"
+$configFile = "$kommitDir\config.json"
+if (-not (Test-Path $kommitDir)) { New-Item -ItemType Directory -Path $kommitDir | Out-Null }
 if (-not (Test-Path $configFile)) {
     Write-Host "Let's configure kommit!"
     Write-Host ""
@@ -74,10 +76,10 @@ if (-not (Test-Path $configFile)) {
     Set-Content -Path $configFile -Value $config
 
     Write-Host ""
-    Write-Host "Config saved to ~/.kommitconfig"
+    Write-Host "Config saved to ~/.kommit/config.json"
     Write-Host "You can change these anytime with 'kommit config'."
 } else {
-    Write-Host "Existing config found at $configFile"
+    Write-Host "Existing config found at ~/.kommit/config.json"
 }
 
 Write-Host ""

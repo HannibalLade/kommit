@@ -32,7 +32,7 @@ public class CommitSplitter
         return false;
     }
 
-    public int RunInteractiveSplit(string branch, DiffSummary diff, bool dryRun)
+    public int RunInteractiveSplit(string branch, DiffSummary diff, bool preview)
     {
         var remainingFiles = new List<string>(diff.ChangedFiles);
 
@@ -79,13 +79,14 @@ public class CommitSplitter
             var message = _analyzer.Analyze(branch, selectedDiff);
             var finalMessage = TruncateMessage(message);
 
-            if (dryRun)
+            if (preview)
             {
-                Console.WriteLine($"[dry-run] {finalMessage}\n");
+                Console.WriteLine($"[preview] {finalMessage}\n");
             }
             else
             {
                 _git.Commit(finalMessage.ToString());
+                Kommit.Commands.UndoCommand.RecordCommand("commit");
                 Console.WriteLine(finalMessage);
                 commitCount++;
             }
@@ -98,7 +99,7 @@ public class CommitSplitter
         }
 
         // Re-stage any remaining files that weren't committed (in dry-run mode)
-        if (dryRun && diff.ChangedFiles.Count > 0)
+        if (preview && diff.ChangedFiles.Count > 0)
         {
             _git.StageFiles(diff.ChangedFiles);
         }

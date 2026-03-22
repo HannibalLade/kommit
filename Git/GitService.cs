@@ -229,6 +229,11 @@ public class GitService
         RunGit($"tag {tag}");
     }
 
+    public void DeleteTag(string tag)
+    {
+        RunGitRaw($"tag -d {tag}");
+    }
+
     public void PushTag(string tag)
     {
         RunGit($"push origin {tag}");

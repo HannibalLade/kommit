@@ -8,10 +8,12 @@ internal partial class KommitConfigContext : JsonSerializerContext { }
 
 public class ConfigService
 {
-    private static readonly string ConfigPath = Path.Combine(
+    private static readonly string KommitDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".kommitconfig"
+        ".kommit"
     );
+
+    private static readonly string ConfigPath = Path.Combine(KommitDir, "config.json");
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -20,8 +22,19 @@ public class ConfigService
         TypeInfoResolver = KommitConfigContext.Default
     };
 
+    private static readonly string LegacyConfigPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".kommitconfig"
+    );
+
     public KommitConfig Load()
     {
+        if (!File.Exists(ConfigPath) && File.Exists(LegacyConfigPath))
+        {
+            Directory.CreateDirectory(KommitDir);
+            File.Move(LegacyConfigPath, ConfigPath);
+        }
+
         if (!File.Exists(ConfigPath))
             return new KommitConfig();
 
@@ -31,6 +44,7 @@ public class ConfigService
 
     public void Save(KommitConfig config)
     {
+        Directory.CreateDirectory(KommitDir);
         var json = JsonSerializer.Serialize(config, JsonOptions);
         File.WriteAllText(ConfigPath, json);
     }

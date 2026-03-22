@@ -30,6 +30,7 @@ public static class MergeCommand
             {
                 Console.WriteLine("Merged cleanly.");
                 git.Push(config.PushStrategy);
+                UndoCommand.RecordCommand("merge");
                 Console.WriteLine("Pushed.");
                 return 0;
             }
@@ -125,6 +126,7 @@ public static class MergeCommand
         Console.WriteLine(message);
 
         git.Push(config.PushStrategy);
+        UndoCommand.RecordCommand("merge");
         Console.WriteLine("Pushed.");
 
         return 0;

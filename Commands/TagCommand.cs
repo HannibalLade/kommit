@@ -4,7 +4,7 @@ namespace Kommit.Commands;
 
 public static class TagCommand
 {
-    public static int Run(string[] args, GitService git)
+    public static int Run(string[] args, GitService git, bool preview = false)
     {
         var bump = "minor";
         if (args.Contains("-major")) bump = "major";
@@ -33,14 +33,39 @@ public static class TagCommand
         var versionString = $"{next.Major}.{next.Minor}.{next.Build}";
         var tag = $"v{versionString}";
 
+        if (preview)
+        {
+            Console.WriteLine($"[preview] Would bump {bump} version: {latest ?? "v0.0.0"} -> {tag}");
+            Console.WriteLine($"[preview] Update .csproj version to {versionString}");
+            Console.WriteLine($"[preview] Stage all changes");
+            Console.WriteLine($"[preview] Commit: chore: bump version to {tag}");
+            Console.WriteLine($"[preview] Create tag {tag}");
+            Console.WriteLine($"[preview] Push commit and tag to origin");
+            return 0;
+        }
+
+        Console.WriteLine($"Bumping {bump} version: {latest ?? "v0.0.0"} -> {tag}");
+
+        Console.WriteLine($"Updating .csproj version to {versionString}...");
         UpdateCsprojVersion(versionString);
 
+        Console.WriteLine("Staging changes...");
         git.StageAll();
+
+        Console.WriteLine($"Committing: chore: bump version to {tag}");
         git.Commit($"chore: bump version to {tag}");
+
+        Console.WriteLine($"Creating tag {tag}...");
         git.CreateTag(tag);
+
+        Console.WriteLine("Pushing commit...");
         git.Push("simple");
+
+        Console.WriteLine($"Pushing tag {tag}...");
         git.PushTag(tag);
-        Console.WriteLine(tag);
+
+        UndoCommand.RecordCommand("tag", tag);
+        Console.WriteLine($"Done. Released {tag}");
 
         return 0;
     }

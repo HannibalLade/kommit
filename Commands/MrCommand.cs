@@ -103,6 +103,7 @@ public static class MrCommand
             return 1;
         }
 
+        UndoCommand.RecordCommand("mr", result);
         Console.WriteLine(result);
         return 0;
     }
@@ -234,7 +235,7 @@ public static class MrCommand
 
         config.ApiToken = token;
         configService.Save(config);
-        Console.WriteLine("Token saved to ~/.kommitconfig\n");
+        Console.WriteLine("Token saved to ~/.kommit/config.json\n");
 
         return config;
     }

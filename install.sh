@@ -62,7 +62,9 @@ fi
 echo ""
 
 # First-time setup
-CONFIG_FILE="$HOME/.kommitconfig"
+CONFIG_DIR="$HOME/.kommit"
+CONFIG_FILE="$CONFIG_DIR/config.json"
+mkdir -p "$CONFIG_DIR"
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "Let's configure kommit!"
     echo ""
@@ -98,10 +100,10 @@ if [ ! -f "$CONFIG_FILE" ]; then
 EOF
 
     echo ""
-    echo "Config saved to ~/.kommitconfig"
+    echo "Config saved to ~/.kommit/config.json"
     echo "You can change these anytime with 'kommit config'."
 else
-    echo "Existing config found at ~/.kommitconfig"
+    echo "Existing config found at ~/.kommit/config.json"
 fi
 
 echo ""
