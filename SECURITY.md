@@ -2,8 +2,8 @@
 
 ## Reporting Vulnerabilities
 
-Open a GitHub security advisory on this repository.
+Please report security issues via email. Do not open public issues.
 
 ## Supported Versions
 
-The latest two minor versions receive security patches.
+Only the latest release is supported with security updates.

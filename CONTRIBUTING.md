@@ -10,6 +10,6 @@
 
 ## Code Style
 
-- Use K&R brace style
-- Explicit types over var
-- XML docs on all public members
+- Follow .NET naming conventions
+- Keep methods short and readable
+- Always write tests
