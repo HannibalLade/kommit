@@ -62,9 +62,31 @@ public class GitService
     public DiffSummary GetStagedDiff()
     {
         var diff = RunGit("diff --cached");
-        var files = RunGit("diff --cached --name-only")
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .ToList();
+
+        var nameStatus = RunGit("diff --cached --name-status")
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+        var files = new List<string>();
+        var fileChanges = new List<FileChange>();
+
+        foreach (var line in nameStatus)
+        {
+            var parts = line.Split('\t');
+            if (parts.Length < 2) continue;
+
+            var status = parts[0];
+            var path = parts[^1]; // last element handles renames (R100\told\tnew)
+            files.Add(path);
+
+            var kind = status[0] switch
+            {
+                'A' => FileChangeKind.Added,
+                'D' => FileChangeKind.Deleted,
+                'R' => FileChangeKind.Renamed,
+                _ => FileChangeKind.Modified,
+            };
+            fileChanges.Add(new FileChange(path, kind));
+        }
 
         var stat = RunGit("diff --cached --numstat");
         int added = 0, deleted = 0;
@@ -79,7 +101,7 @@ public class GitService
             }
         }
 
-        return new DiffSummary(files, added, deleted, diff);
+        return new DiffSummary(files, added, deleted, diff) { FileChanges = fileChanges };
     }
 
     public bool HasStagedChanges()

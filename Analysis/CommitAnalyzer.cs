@@ -38,6 +38,21 @@ public class CommitAnalyzer
         [".targets"] = "build",
     };
 
+    private static readonly Dictionary<string, string[]> TypeAllowedVerbs = new()
+    {
+        ["feat"] = ["add", "implement", "introduce", "create"],
+        ["fix"] = ["fix", "resolve", "handle", "add", "correct"],
+        ["refactor"] = ["rename", "replace", "simplify", "clean up", "remove", "restructure", "extract", "move", "refactor", "update"],
+        ["docs"] = ["add", "update", "remove", "document"],
+        ["perf"] = ["improve", "optimize", "cache", "update"],
+        ["test"] = ["add", "update", "remove", "add tests for"],
+        ["style"] = ["update", "fix", "adjust"],
+        ["chore"] = ["update", "add", "remove", "clean up", "simplify", "implement"],
+        ["build"] = ["update", "add", "remove", "configure"],
+        ["ci"] = ["update", "add", "remove", "configure"],
+        ["revert"] = ["revert"],
+    };
+
     private readonly DiffParser _parser = new();
 
     private enum TypeSource { Branch, Symbols, Signals, Files, Heuristic }
@@ -59,33 +74,42 @@ public class CommitAnalyzer
         if (typeFromBranch is not null)
             return (typeFromBranch, TypeSource.Branch);
 
-        // 2. Symbol-based inference (new methods/classes take priority)
+        // 2. File change kinds (all new files → feat, all deleted → refactor)
+        if (diff.FileChanges.Count > 0)
+        {
+            if (diff.FileChanges.All(f => f.Kind == FileChangeKind.Added))
+                return ("feat", TypeSource.Files);
+            if (diff.FileChanges.All(f => f.Kind == FileChangeKind.Deleted))
+                return ("refactor", TypeSource.Files);
+        }
+
+        // 3. Symbol-based inference (new methods/classes take priority)
         var typeFromSymbols = GetTypeFromSymbols(parsed, diff);
         if (typeFromSymbols is not null)
             return (typeFromSymbols, TypeSource.Symbols);
 
-        // 3. Signal-based inference from diff content
+        // 4. Signal-based inference from diff content
         var typeFromSignals = GetTypeFromSignals(parsed, diff);
         if (typeFromSignals is not null)
             return (typeFromSignals, TypeSource.Signals);
 
-        // 4. File-type heuristics
+        // 5. File-type heuristics
         var typeFromFiles = GetTypeFromFiles(diff.ChangedFiles);
         if (typeFromFiles is not null)
             return (typeFromFiles, TypeSource.Files);
 
-        // 5. All test files
+        // 6. All test files
         if (diff.ChangedFiles.All(f => IsTestFile(f)))
             return ("test", TypeSource.Files);
 
-        // 6. Line ratio fallback
+        // 7. Line ratio fallback
         if (diff.LinesAdded == 0 && diff.LinesDeleted > 0)
             return ("refactor", TypeSource.Heuristic);
 
         if (diff.LinesAdded > 0 && diff.LinesDeleted == 0)
             return ("feat", TypeSource.Heuristic);
 
-        // 7. Default
+        // 8. Default
         return ("chore", TypeSource.Heuristic);
     }
 
@@ -93,7 +117,6 @@ public class CommitAnalyzer
     {
         var signals = parsed.Signals;
 
-        // Strong signals first
         if (signals.HasFlag(DiffSignals.Tests))
             return "test";
 
@@ -105,7 +128,6 @@ public class CommitAnalyzer
 
         if (signals.HasFlag(DiffSignals.ErrorHandling) || signals.HasFlag(DiffSignals.NullChecks))
         {
-            // If mostly adding error handling to existing code, it's a fix
             if (diff.LinesAdded > diff.LinesDeleted)
                 return "fix";
         }
@@ -145,10 +167,8 @@ public class CommitAnalyzer
         // Both adding and removing
         if (parsed.AddedSymbols.Count > 0 && parsed.RemovedSymbols.Count > 0)
         {
-            // If mostly renames with few other changes, it's a refactor
             if (parsed.RenamedSymbols.Count > 0 && parsed.AddedSymbols.Count <= parsed.RenamedSymbols.Count)
                 return "refactor";
-            // More additions than renames/removals → feat
             if (parsed.AddedSymbols.Count > parsed.RemovedSymbols.Count)
                 return "feat";
             return "refactor";
@@ -195,36 +215,41 @@ public class CommitAnalyzer
 
     private static string InferDescription(string type, TypeSource source, DiffSummary diff, ParsedDiff parsed)
     {
-        // Symbol-based descriptions — prioritize type names over member names
-        if (parsed.RenamedSymbols.Count > 0)
+        // For multi-file changes (>3 files), skip symbol-based descriptions — they produce noise
+        var useSymbols = diff.ChangedFiles.Count <= 3;
+
+        // Symbol-based descriptions for small changesets
+        if (useSymbols)
         {
-            if (parsed.RenamedSymbols.Count == 1)
-                return $"rename {parsed.RenamedSymbols[0]}";
-            return $"rename {parsed.RenamedSymbols.Count} symbols";
+            if (parsed.RenamedSymbols.Count > 0)
+            {
+                if (parsed.RenamedSymbols.Count == 1)
+                    return $"rename {parsed.RenamedSymbols[0]}";
+                return $"rename {parsed.RenamedSymbols.Count} symbols";
+            }
+
+            if (parsed.AddedSymbols.Count > 0 && parsed.RemovedSymbols.Count == 0)
+            {
+                var action = type == "test" ? "add tests for" : "add";
+                return $"{action} {DescribeSymbols(parsed.AddedTypes, parsed.AddedMembers)}";
+            }
+
+            if (parsed.RemovedSymbols.Count > 0 && parsed.AddedSymbols.Count == 0)
+            {
+                return $"remove {DescribeSymbols(parsed.RemovedTypes, parsed.RemovedMembers)}";
+            }
+
+            if (parsed.AddedSymbols.Count > 0 && parsed.RemovedSymbols.Count > 0)
+            {
+                if (parsed.AddedSymbols.Count == 1 && parsed.RemovedSymbols.Count == 1)
+                    return $"replace {parsed.RemovedSymbols[0]} with {parsed.AddedSymbols[0]}";
+                if (parsed.AddedTypes.Count > 0)
+                    return $"add {DescribeSymbols(parsed.AddedTypes, [])}";
+                // Fall through to file-based instead of "refactor N symbols"
+            }
         }
 
-        if (parsed.AddedSymbols.Count > 0 && parsed.RemovedSymbols.Count == 0)
-        {
-            var action = type == "test" ? "add tests for" : "add";
-            return $"{action} {DescribeSymbols(parsed.AddedTypes, parsed.AddedMembers)}";
-        }
-
-        if (parsed.RemovedSymbols.Count > 0 && parsed.AddedSymbols.Count == 0)
-        {
-            return $"remove {DescribeSymbols(parsed.RemovedTypes, parsed.RemovedMembers)}";
-        }
-
-        if (parsed.AddedSymbols.Count > 0 && parsed.RemovedSymbols.Count > 0)
-        {
-            if (parsed.AddedSymbols.Count == 1 && parsed.RemovedSymbols.Count == 1)
-                return $"replace {parsed.RemovedSymbols[0]} with {parsed.AddedSymbols[0]}";
-            // If new types were added alongside modifications, focus on the types
-            if (parsed.AddedTypes.Count > 0)
-                return $"add {DescribeSymbols(parsed.AddedTypes, [])}";
-            return $"refactor {parsed.AddedSymbols.Count + parsed.RemovedSymbols.Count} symbols";
-        }
-
-        // Only use signal-based descriptions when signals actually determined the type
+        // Signal-based descriptions when signals determined the type
         if (source == TypeSource.Signals)
         {
             if (parsed.Signals.HasFlag(DiffSignals.ErrorHandling))
@@ -246,8 +271,52 @@ public class CommitAnalyzer
                 return DescribeWithFiles("update logging", diff.ChangedFiles);
         }
 
-        // Fallback to file-based description
-        return DescribeFromFiles(diff);
+        // File-based description
+        var description = DescribeFromFiles(diff);
+
+        // Consistency check: ensure the description verb doesn't contradict the type
+        return EnsureConsistency(type, description, diff);
+    }
+
+    private static string EnsureConsistency(string type, string description, DiffSummary diff)
+    {
+        if (!TypeAllowedVerbs.TryGetValue(type, out var allowed))
+            return description;
+
+        // Check if description starts with an allowed verb for this type
+        if (allowed.Any(v => description.StartsWith(v, StringComparison.OrdinalIgnoreCase)))
+            return description;
+
+        // Rewrite with a type-appropriate verb
+        var verb = GetVerbForType(type, diff);
+
+        // Try to keep the object of the description (everything after the first verb)
+        var firstSpace = description.IndexOf(' ');
+        if (firstSpace > 0)
+        {
+            var rest = description[firstSpace..];
+            return $"{verb}{rest}";
+        }
+
+        return $"{verb} {description}";
+    }
+
+    private static string GetVerbForType(string type, DiffSummary diff)
+    {
+        return type switch
+        {
+            "feat" => diff.LinesAdded > diff.LinesDeleted * 3 ? "implement" : "add",
+            "fix" => "fix",
+            "refactor" => diff.LinesDeleted > diff.LinesAdded ? "simplify" : "restructure",
+            "docs" => "update",
+            "perf" => "improve",
+            "test" => "add tests for",
+            "style" => "update",
+            "chore" => "update",
+            "build" => "update",
+            "ci" => "update",
+            _ => "update",
+        };
     }
 
     private static string DescribeWithFiles(string action, IReadOnlyList<string> files)
@@ -271,7 +340,7 @@ public class CommitAnalyzer
     private static string DescribeFromFiles(DiffSummary diff)
     {
         var files = diff.ChangedFiles;
-        var action = GetAction(diff);
+        var action = GetActionFromFileChanges(diff);
 
         if (files.Count == 1)
         {
@@ -285,15 +354,10 @@ public class CommitAnalyzer
         if (purposes.Count == 1)
             return $"{action} {purposes[0]}";
 
-        // Check if files share a common directory
-        var dirs = files
-            .Select(f => f.Replace('\\', '/'))
-            .Select(f => { var i = f.LastIndexOf('/'); return i > 0 ? f[..i] : null; })
-            .Where(d => d is not null)
-            .Distinct()
-            .ToList();
-        if (dirs.Count == 1)
-            return $"{action} {Path.GetFileName(dirs[0]!)} module";
+        // Find deepest common directory
+        var commonDir = GetDeepestCommonDirectory(files);
+        if (commonDir is not null)
+            return $"{action} {commonDir}";
 
         if (files.Count <= 3)
         {
@@ -301,7 +365,83 @@ public class CommitAnalyzer
             return $"{action} {fileNames}";
         }
 
-        return $"{action} {files.Count} files";
+        // Last resort: use top-level directory grouping for a better description
+        var topDirs = files
+            .Select(f => f.Replace('\\', '/'))
+            .Select(f => { var i = f.IndexOf('/'); return i > 0 ? f[..i] : Path.GetFileName(f); })
+            .Distinct()
+            .ToList();
+
+        if (topDirs.Count == 1)
+            return $"{action} {topDirs[0]}";
+
+        if (topDirs.Count <= 3)
+            return $"{action} {string.Join(", ", topDirs)}";
+
+        return $"{action} {files.Count} files across {topDirs.Count} modules";
+    }
+
+    private static string GetActionFromFileChanges(DiffSummary diff)
+    {
+        // Use FileChangeKind when available for more accurate verbs
+        if (diff.FileChanges.Count > 0)
+        {
+            var kinds = diff.FileChanges.Select(f => f.Kind).Distinct().ToList();
+            if (kinds.Count == 1)
+            {
+                return kinds[0] switch
+                {
+                    FileChangeKind.Added => "add",
+                    FileChangeKind.Deleted => "remove",
+                    FileChangeKind.Renamed => "rename",
+                    _ => GetAction(diff),
+                };
+            }
+
+            // Mostly new files
+            var addedCount = diff.FileChanges.Count(f => f.Kind == FileChangeKind.Added);
+            if (addedCount > diff.FileChanges.Count / 2)
+                return "add";
+
+            var deletedCount = diff.FileChanges.Count(f => f.Kind == FileChangeKind.Deleted);
+            if (deletedCount > diff.FileChanges.Count / 2)
+                return "remove";
+        }
+
+        return GetAction(diff);
+    }
+
+    private static string? GetDeepestCommonDirectory(IReadOnlyList<string> files)
+    {
+        if (files.Count < 2) return null;
+
+        var paths = files.Select(f => f.Replace('\\', '/')).ToList();
+
+        // Split each path into segments
+        var segments = paths
+            .Select(p => p.Split('/'))
+            .ToList();
+
+        // Find common prefix segments
+        var minLen = segments.Min(s => s.Length);
+        var commonDepth = 0;
+
+        for (var i = 0; i < minLen - 1; i++) // -1 to exclude filename
+        {
+            var seg = segments[0][i];
+            if (segments.All(s => s[i] == seg))
+                commonDepth = i + 1;
+            else
+                break;
+        }
+
+        if (commonDepth == 0) return null;
+
+        var commonPath = string.Join("/", segments[0].Take(commonDepth));
+
+        // Use the deepest directory name for readability
+        var dirName = segments[0][commonDepth - 1];
+        return dirName;
     }
 
     private static string? InferFilePurpose(string path)
@@ -329,7 +469,6 @@ public class CommitAnalyzer
 
     private static string DescribeSymbols(List<string> types, List<string> members)
     {
-        // If there are type names, prefer those (e.g. "MergeRequestService")
         if (types.Count > 0)
         {
             if (types.Count == 1 && members.Count == 0)
@@ -341,7 +480,6 @@ public class CommitAnalyzer
             return $"{types[0]} and {types.Count - 1} others";
         }
 
-        // No types, just members
         if (members.Count == 1)
             return members[0];
         if (members.Count == 2)

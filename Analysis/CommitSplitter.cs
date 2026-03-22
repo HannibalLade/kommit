@@ -1,6 +1,7 @@
 using Kommit.Config;
 using Kommit.Git;
 using Kommit.Models;
+using Kommit.UI;
 
 namespace Kommit.Analysis;
 
@@ -85,9 +86,17 @@ public class CommitSplitter
             }
             else
             {
-                _git.Commit(finalMessage.ToString());
+                var edited = PromptEditor.Edit("Commit message (enter to accept): ", finalMessage);
+                if (edited is null)
+                {
+                    Console.WriteLine("Skipped.");
+                    foreach (var file in selectedFiles)
+                        remainingFiles.Remove(file);
+                    continue;
+                }
+                _git.Commit(edited);
                 Kommit.Commands.UndoCommand.RecordCommand("commit");
-                Console.WriteLine(finalMessage);
+                Console.WriteLine(edited);
                 commitCount++;
             }
 

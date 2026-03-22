@@ -2,6 +2,7 @@ using Kommit.Analysis;
 using Kommit.Commands;
 using Kommit.Config;
 using Kommit.Git;
+using Kommit.UI;
 using Kommit.Update;
 
 namespace Kommit;
@@ -181,6 +182,17 @@ class Program
         {
             Console.WriteLine(finalMessage);
             return 0;
+        }
+
+        if (customMessage is null)
+        {
+            var edited = PromptEditor.Edit("Commit message (enter to accept): ", finalMessage);
+            if (edited is null)
+            {
+                Console.WriteLine("Aborted.");
+                return 1;
+            }
+            finalMessage = edited;
         }
 
         git.Commit(finalMessage);
