@@ -69,18 +69,24 @@ kommit mr develop
 
 - Detects GitHub vs GitLab from your remote URL (including self-hosted GitLab)
 - Pushes your branch
-- Checks for conflicts before creating — if found, offers to open VS Code at the exact conflict lines so you can fix them first
+- **If conflicts are found**, walks you through resolving them before creating the MR — choose to resolve all at once (incoming/current), one file at a time, or open VS Code at the exact conflict lines
+- After resolving, it commits the merge, pushes, and creates the MR — all in one flow
+- If you use VS Code, run `kommit continue` when done — it picks up where you left off and creates the MR
 - Auto-assigns you
 - Interactive reviewer picker from project members
 - Walks you through API token setup on first use
 
+**Already have an MR with conflicts?** GitLab/GitHub will tell you to "resolve locally". Just run `kommit merge <target-branch>` (e.g. `kommit merge develop`) while on your feature branch — it merges the target into your branch, walks you through conflicts, and pushes. Your MR is updated automatically.
+
 ### `kommit merge` — merge with conflict resolution
 
-Merge a branch with interactive per-file conflict resolution.
+Merge a branch into your current branch with interactive conflict resolution.
 
 ```sh
-kommit merge main
+kommit merge develop            # merge develop into your current branch
 ```
+
+This is what you run when your MR has conflicts — it brings the target branch changes into your feature branch so your MR can merge cleanly.
 
 For each conflicted file, choose:
 - **[i]ncoming** — accept the incoming changes
@@ -91,8 +97,8 @@ For each conflicted file, choose:
 Bulk resolve everything at once:
 
 ```sh
-kommit merge main -incoming     # accept all incoming
-kommit merge main -current      # keep all current
+kommit merge develop -incoming     # accept all incoming
+kommit merge develop -current      # keep all current
 ```
 
 ### `kommit continue` — resume after conflict resolution
@@ -103,7 +109,7 @@ After fixing conflicts in your editor, continue the merge:
 kommit continue
 ```
 
-If conflicts remain, it shows them and offers to open VS Code again. Once all conflicts are resolved, it commits and pushes.
+If conflicts remain, it shows them and offers to open VS Code again. Once all conflicts are resolved, it commits and pushes. If you were in the middle of creating an MR (`kommit mr`), it picks up and creates the MR too.
 
 ### `kommit undo` — undo the last command
 

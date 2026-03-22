@@ -5,6 +5,13 @@ namespace Kommit.Commands;
 
 public static class MrCommand
 {
+    private static readonly string KommitDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".kommit"
+    );
+
+    private static readonly string PendingMrPath = Path.Combine(KommitDir, "pending-mr");
+
     public static int Run(string[] args, GitService git, KommitConfig config, ConfigService configService)
     {
         var targetBranch = args.Length > 1 ? args.Skip(1).FirstOrDefault(a => !a.StartsWith("-")) : null;
@@ -71,26 +78,40 @@ public static class MrCommand
                 Console.WriteLine($"  - {file}:{line}");
             }
 
-            git.AbortMerge();
+            Console.WriteLine($"\nTo create the {platformName}, these conflicts need to be resolved first.");
+            Console.WriteLine($"This merges {targetBranch} into {sourceBranch} so your branch is up to date.\n");
 
-            Console.Write($"\nOpen in VS Code to resolve? [y/N] ");
+            Console.Write("Resolve now? [Y/n] ");
             var resolveAnswer = Console.ReadLine()?.Trim();
-            if (resolveAnswer?.Equals("y", StringComparison.OrdinalIgnoreCase) == true)
+            if (string.IsNullOrEmpty(resolveAnswer) || resolveAnswer.Equals("y", StringComparison.OrdinalIgnoreCase))
             {
-                // Re-start merge so user can fix conflicts
-                git.StartMerge($"origin/{targetBranch}");
-                var filesWithLines = conflicts.Select(f => $"{f}:{GitService.GetFirstConflictLine(f)}");
-                GitService.OpenInVSCode(filesWithLines);
-                Console.WriteLine("Fix the conflicts in VS Code, then run 'kommit continue'.");
-                return 1;
-            }
+                // Merge is already in progress from the check above — resolve conflicts
+                var resolved = ResolveConflicts(git, conflicts);
 
-            Console.Write($"\nCreate {platformName} anyway? Conflicts will be visible on the remote. [y/N] ");
-            var answer = Console.ReadLine()?.Trim();
-            if (!answer?.Equals("y", StringComparison.OrdinalIgnoreCase) == true)
+                if (resolved)
+                {
+                    // All conflicts resolved inline — commit merge and push
+                    CommitMergeAndPush(git, config, sourceBranch, targetBranch);
+                }
+                else
+                {
+                    // User chose VS Code or skipped — save state for kommit continue
+                    SavePendingMr(targetBranch, selectedReviewers, currentUser, remote);
+                    Console.WriteLine($"\nAfter resolving, run 'kommit continue' — it will finish the merge and create the {platformName}.");
+                    return 1;
+                }
+            }
+            else
             {
-                Console.WriteLine("Aborted.");
-                return 1;
+                git.AbortMerge();
+
+                Console.Write($"\nCreate {platformName} anyway? Conflicts will be visible on the remote. [y/N] ");
+                var answer = Console.ReadLine()?.Trim();
+                if (!answer?.Equals("y", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    Console.WriteLine("Aborted.");
+                    return 1;
+                }
             }
         }
         else
@@ -99,6 +120,14 @@ public static class MrCommand
             Console.WriteLine("No conflicts.");
         }
 
+        return CreateMr(git, config, service, remote, sourceBranch, targetBranch, selectedReviewers, currentUser);
+    }
+
+    public static int CreateMr(GitService git, KommitConfig config, MergeRequestService service,
+        RemoteInfo remote, string sourceBranch, string targetBranch,
+        List<string> selectedReviewers, string? currentUser)
+    {
+        var platformName = remote.Platform == Platform.GitHub ? "pull request" : "merge request";
         var title = MergeRequestService.GenerateTitle(sourceBranch);
         Console.WriteLine($"Creating {platformName}: \"{title}\"...");
 
@@ -121,6 +150,192 @@ public static class MrCommand
         UndoCommand.RecordCommand("mr", result);
         Console.WriteLine(result);
         return 0;
+    }
+
+    /// <summary>
+    /// Resume MR creation after conflict resolution via kommit continue.
+    /// Returns true if a pending MR was found and handled.
+    /// </summary>
+    public static bool TryResumePendingMr(GitService git, KommitConfig config)
+    {
+        if (!File.Exists(PendingMrPath))
+            return false;
+
+        var pending = LoadPendingMr();
+        File.Delete(PendingMrPath);
+
+        if (pending is null)
+            return false;
+
+        var (targetBranch, reviewers, currentUser, remote) = pending.Value;
+        var sourceBranch = git.GetBranchName();
+        var platformName = remote.Platform == Platform.GitHub ? "pull request" : "merge request";
+
+        Console.Write($"\nConflicts resolved. Create the {platformName} to {targetBranch}? [Y/n] ");
+        var answer = Console.ReadLine()?.Trim();
+        if (!string.IsNullOrEmpty(answer) && !answer.Equals("y", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"Skipped. You can create it later with 'kommit mr {targetBranch}'.");
+            return true;
+        }
+
+        if (string.IsNullOrEmpty(config.ApiToken))
+        {
+            Console.Error.WriteLine("No API token configured. Run 'kommit mr' to set one up.");
+            return true;
+        }
+
+        var service = new MergeRequestService(config.ApiToken);
+        CreateMr(git, config, service, remote, sourceBranch, targetBranch, reviewers, currentUser);
+        return true;
+    }
+
+    private static bool ResolveConflicts(GitService git, List<string> conflicts)
+    {
+        var useIncoming = false;
+
+        Console.WriteLine($"How do you want to resolve all {conflicts.Count} conflict(s)?\n");
+        Console.Write("[i]ncoming / [c]urrent / [v]scode / [o]ne-by-one? ");
+
+        while (true)
+        {
+            var input = Console.ReadLine()?.Trim().ToLowerInvariant();
+
+            if (input is "i" or "incoming")
+            {
+                useIncoming = true;
+                break;
+            }
+            if (input is "c" or "current")
+            {
+                break;
+            }
+            if (input is "v" or "vscode")
+            {
+                OpenConflictsInVSCode(conflicts);
+                Console.WriteLine("Fix the conflicts in VS Code, then run 'kommit continue'.");
+                return false;
+            }
+            if (input is "o" or "one-by-one")
+            {
+                return ResolveOneByOne(git, conflicts);
+            }
+
+            Console.Write("[i]ncoming / [c]urrent / [v]scode / [o]ne-by-one? ");
+        }
+
+        if (useIncoming)
+            git.AcceptIncoming(conflicts);
+        else
+            git.AcceptCurrent(conflicts);
+
+        git.StageFiles(conflicts);
+        Console.WriteLine(useIncoming ? "Accepted all incoming changes." : "Kept all current changes.");
+        return true;
+    }
+
+    private static bool ResolveOneByOne(GitService git, List<string> conflicts)
+    {
+        foreach (var file in conflicts)
+        {
+            var line = GitService.GetFirstConflictLine(file);
+            Console.WriteLine($"\n  {file}:{line}");
+            Console.Write("  [i]ncoming / [c]urrent / [v]scode / [s]kip? ");
+
+            while (true)
+            {
+                var input = Console.ReadLine()?.Trim().ToLowerInvariant();
+                if (input is "i" or "incoming")
+                {
+                    git.AcceptIncoming(new[] { file });
+                    git.StageFiles(new[] { file });
+                    Console.WriteLine("  -> accepted incoming");
+                    break;
+                }
+                if (input is "c" or "current")
+                {
+                    git.AcceptCurrent(new[] { file });
+                    git.StageFiles(new[] { file });
+                    Console.WriteLine("  -> kept current");
+                    break;
+                }
+                if (input is "v" or "vscode")
+                {
+                    OpenConflictsInVSCode(new[] { file });
+                    Console.WriteLine("  -> opened in VS Code");
+                    Console.WriteLine("  Fix the conflicts, then run 'kommit continue'.");
+                    return false;
+                }
+                if (input is "s" or "skip")
+                {
+                    Console.WriteLine("  -> skipped");
+                    break;
+                }
+                Console.Write("  [i]ncoming / [c]urrent / [v]scode / [s]kip? ");
+            }
+        }
+
+        // Check if all conflicts are resolved
+        var remaining = git.GetConflictedFiles();
+        if (remaining.Count > 0)
+        {
+            Console.WriteLine($"\n{remaining.Count} conflict(s) still unresolved. Run 'kommit continue' after resolving.");
+            return false;
+        }
+
+        return true;
+    }
+
+    private static void CommitMergeAndPush(GitService git, KommitConfig config, string sourceBranch, string targetBranch)
+    {
+        var message = $"merge {targetBranch} into {sourceBranch}";
+        git.Commit(message);
+        Console.WriteLine($"\nCommitted: {message}");
+
+        Console.WriteLine($"Pushing {sourceBranch}...");
+        git.Push(config.PushStrategy);
+    }
+
+    private static void SavePendingMr(string targetBranch, List<string> reviewers, string? currentUser, RemoteInfo remote)
+    {
+        Directory.CreateDirectory(KommitDir);
+        // Format: targetBranch|reviewers|currentUser|platform|host|projectPath
+        var reviewerStr = string.Join(",", reviewers);
+        var content = $"{targetBranch}|{reviewerStr}|{currentUser ?? ""}|{(int)remote.Platform}|{remote.Host}|{remote.ProjectPath}";
+        File.WriteAllText(PendingMrPath, content);
+    }
+
+    private static (string targetBranch, List<string> reviewers, string? currentUser, RemoteInfo remote)? LoadPendingMr()
+    {
+        try
+        {
+            var parts = File.ReadAllText(PendingMrPath).Trim().Split('|');
+            if (parts.Length < 6) return null;
+
+            var targetBranch = parts[0];
+            var reviewers = string.IsNullOrEmpty(parts[1]) ? new List<string>() : parts[1].Split(',').ToList();
+            var currentUser = string.IsNullOrEmpty(parts[2]) ? null : parts[2];
+            var platform = (Platform)int.Parse(parts[3]);
+            var host = parts[4];
+            var projectPath = parts[5];
+            var remote = new RemoteInfo(platform, host, projectPath);
+
+            return (targetBranch, reviewers, currentUser, remote);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void OpenConflictsInVSCode(IEnumerable<string> files)
+    {
+        var filesWithLines = files.Select(f =>
+        {
+            var line = GitService.GetFirstConflictLine(f);
+            return $"{f}:{line}";
+        });
+        GitService.OpenInVSCode(filesWithLines);
     }
 
     private static List<string> PickReviewers(List<ProjectMember> candidates, string? currentUser)
