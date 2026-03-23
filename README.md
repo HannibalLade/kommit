@@ -5,6 +5,7 @@ A git workflow tool that handles commits, merges, pull requests, tagging, and co
 ```sh
 kommit                    # stage → generate message → edit → commit
 kommit mr develop         # push, pick reviewers, create PR/MR
+kommit mr develop -incoming  # same, but auto-accept incoming on conflicts
 kommit merge main         # merge with interactive conflict resolution
 kommit tag                # bump version, tag, push
 kommit undo               # undo the last command
@@ -65,11 +66,14 @@ Push your branch and create an MR (GitLab) or PR (GitHub) in one command.
 
 ```sh
 kommit mr develop
+kommit mr develop -incoming       # auto-accept incoming on conflicts
+kommit mr develop -current        # auto-keep current on conflicts
 ```
 
 - Detects GitHub vs GitLab from your remote URL (including self-hosted GitLab)
 - Pushes your branch
 - **If conflicts are found**, walks you through resolving them before creating the MR — choose to resolve all at once (incoming/current), one file at a time, or open VS Code at the exact conflict lines
+- Use `-incoming` or `-current` to skip the conflict prompt and auto-resolve
 - After resolving, it commits the merge, pushes, and creates the MR — all in one flow
 - If you use VS Code, run `kommit continue` when done — it picks up where you left off and creates the MR
 - Auto-assigns you
