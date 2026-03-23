@@ -52,11 +52,33 @@ echo "Installed kommit to ${INSTALL_PATH}"
 
 # Check if install dir is in PATH
 if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
-    echo ""
-    echo "NOTE: ${INSTALL_DIR} is not in your PATH."
-    echo "Add it by running:"
-    echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
-    echo "Then add that line to your ~/.zshrc or ~/.bashrc."
+    EXPORT_LINE="export PATH=\"${INSTALL_DIR}:\$PATH\""
+
+    # Detect shell config file
+    if [ -n "${ZSH_VERSION:-}" ] || [ "$(basename "$SHELL")" = "zsh" ]; then
+        SHELL_RC="$HOME/.zshrc"
+    elif [ -n "${BASH_VERSION:-}" ] || [ "$(basename "$SHELL")" = "bash" ]; then
+        SHELL_RC="$HOME/.bashrc"
+    else
+        SHELL_RC=""
+    fi
+
+    if [ -n "$SHELL_RC" ]; then
+        if ! grep -qF "$INSTALL_DIR" "$SHELL_RC" 2>/dev/null; then
+            echo "" >> "$SHELL_RC"
+            echo "# Added by kommit installer" >> "$SHELL_RC"
+            echo "$EXPORT_LINE" >> "$SHELL_RC"
+            echo ""
+            echo "Added ${INSTALL_DIR} to your PATH in ${SHELL_RC}."
+            echo "Restart your terminal or run 'source ${SHELL_RC}' for the change to take effect."
+        fi
+    else
+        echo ""
+        echo "NOTE: ${INSTALL_DIR} is not in your PATH."
+        echo "Add it by running:"
+        echo "  ${EXPORT_LINE}"
+        echo "Then add that line to your shell config file."
+    fi
 fi
 
 echo ""
