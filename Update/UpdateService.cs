@@ -84,6 +84,7 @@ public class UpdateService
         if (latestVersion <= currentVersion)
         {
             Console.WriteLine($"Already up to date (v{latestDisplay}).");
+            EnsureAlias();
             return 0;
         }
 
@@ -167,29 +168,40 @@ public class UpdateService
         }
 
         Console.WriteLine($"Updated to v{latestDisplay}!");
-
-        // Ensure 'cum' alias exists next to the binary
-        var dir = Path.GetDirectoryName(currentBinary);
-        if (dir is not null)
-        {
-            var aliasName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "cum.exe" : "cum";
-            var aliasPath = Path.Combine(dir, aliasName);
-            try
-            {
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    File.Copy(currentBinary, aliasPath, overwrite: true);
-                }
-                else
-                {
-                    if (File.Exists(aliasPath) || new FileInfo(aliasPath).LinkTarget is not null)
-                        File.Delete(aliasPath);
-                    File.CreateSymbolicLink(aliasPath, currentBinary);
-                }
-            }
-            catch { }
-        }
+        EnsureAlias();
 
         return 0;
+    }
+
+    private static void EnsureAlias()
+    {
+        var binaryPath = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(binaryPath))
+            return;
+
+        var dir = Path.GetDirectoryName(binaryPath);
+        if (dir is null)
+            return;
+
+        // Resolve the actual kommit binary path (in case we're running as the alias)
+        var kommitName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "kommit.exe" : "kommit";
+        var kommitPath = Path.Combine(dir, kommitName);
+
+        var aliasName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "cum.exe" : "cum";
+        var aliasPath = Path.Combine(dir, aliasName);
+
+        try
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                File.Copy(kommitPath, aliasPath, overwrite: true);
+            }
+            else
+            {
+                try { File.Delete(aliasPath); } catch { }
+                File.CreateSymbolicLink(aliasPath, kommitPath);
+            }
+        }
+        catch { }
     }
 }
