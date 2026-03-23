@@ -167,6 +167,29 @@ public class UpdateService
         }
 
         Console.WriteLine($"Updated to v{latestDisplay}!");
+
+        // Ensure 'cum' alias exists next to the binary
+        var dir = Path.GetDirectoryName(currentBinary);
+        if (dir is not null)
+        {
+            var aliasName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "cum.exe" : "cum";
+            var aliasPath = Path.Combine(dir, aliasName);
+            try
+            {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    File.Copy(currentBinary, aliasPath, overwrite: true);
+                }
+                else
+                {
+                    if (File.Exists(aliasPath) || new FileInfo(aliasPath).LinkTarget is not null)
+                        File.Delete(aliasPath);
+                    File.CreateSymbolicLink(aliasPath, currentBinary);
+                }
+            }
+            catch { }
+        }
+
         return 0;
     }
 }

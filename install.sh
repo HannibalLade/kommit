@@ -50,6 +50,10 @@ chmod +x "$INSTALL_PATH"
 
 echo "Installed kommit to ${INSTALL_PATH}"
 
+# Create 'cum' alias symlink
+ln -sf "$INSTALL_PATH" "${INSTALL_DIR}/cum"
+echo "Created alias: cum -> kommit"
+
 # Check if install dir is in PATH
 if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
     EXPORT_LINE="export PATH=\"${INSTALL_DIR}:\$PATH\""

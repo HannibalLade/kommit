@@ -31,6 +31,11 @@ Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $installPath
 
 Write-Host "Installed kommit to $installPath"
 
+# Create 'cum' alias by copying the binary
+$aliasPath = "$installDir\cum.exe"
+Copy-Item -Path $installPath -Destination $aliasPath -Force
+Write-Host "Created alias: cum -> kommit"
+
 # Check if install dir is in PATH
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($userPath -notlike "*$installDir*") {
