@@ -15,10 +15,14 @@ public static class MrCommand
     public static int Run(string[] args, GitService git, KommitConfig config, ConfigService configService)
     {
         var targetBranch = args.Length > 1 ? args.Skip(1).FirstOrDefault(a => !a.StartsWith("-")) : null;
+        var autoIncoming = args.Any(a => a is "-incoming" or "--incoming");
+        var autoCurrent = args.Any(a => a is "-current" or "--current");
         if (targetBranch is null)
         {
-            Console.Error.WriteLine("Usage: kommit mr <target-branch>");
+            Console.Error.WriteLine("Usage: kommit mr <target-branch> [-incoming | -current]");
             Console.Error.WriteLine("Example: kommit mr develop");
+            Console.Error.WriteLine("         kommit mr develop -incoming  (auto-accept incoming on conflicts)");
+            Console.Error.WriteLine("         kommit mr develop -current   (auto-keep current on conflicts)");
             return 1;
         }
 
@@ -80,39 +84,54 @@ public static class MrCommand
                 Console.WriteLine($"  - {file}:{line}");
             }
 
-            Console.WriteLine($"\nTo create the {platformName}, these conflicts need to be resolved first.");
-            Console.WriteLine($"This merges {targetBranch} into {sourceBranch} so your branch is up to date.\n");
-
-            Console.Write("Resolve now? [Y/n] ");
-            var resolveAnswer = Console.ReadLine()?.Trim();
-            if (string.IsNullOrEmpty(resolveAnswer) || resolveAnswer.Equals("y", StringComparison.OrdinalIgnoreCase))
+            if (autoIncoming || autoCurrent)
             {
-                // Merge is already in progress from the check above — resolve conflicts
-                var resolved = ResolveConflicts(git, conflicts);
-
-                if (resolved)
-                {
-                    // All conflicts resolved inline — commit merge and push
-                    CommitMergeAndPush(git, config, sourceBranch, targetBranch);
-                }
+                // Auto-resolve with the specified strategy
+                if (autoIncoming)
+                    git.AcceptIncoming(conflicts);
                 else
-                {
-                    // User chose VS Code or skipped — save state for kommit continue
-                    SavePendingMr(targetBranch, selectedReviewers, currentUser, remote);
-                    Console.WriteLine($"\nAfter resolving, run 'kommit continue' — it will finish the merge and create the {platformName}.");
-                    return 1;
-                }
+                    git.AcceptCurrent(conflicts);
+
+                git.StageFiles(conflicts);
+                Console.WriteLine(autoIncoming ? "Accepted all incoming changes." : "Kept all current changes.");
+                CommitMergeAndPush(git, config, sourceBranch, targetBranch);
             }
             else
             {
-                git.AbortMerge();
+                Console.WriteLine($"\nTo create the {platformName}, these conflicts need to be resolved first.");
+                Console.WriteLine($"This merges {targetBranch} into {sourceBranch} so your branch is up to date.\n");
 
-                Console.Write($"\nCreate {platformName} anyway? Conflicts will be visible on the remote. [y/N] ");
-                var answer = Console.ReadLine()?.Trim();
-                if (!answer?.Equals("y", StringComparison.OrdinalIgnoreCase) == true)
+                Console.Write("Resolve now? [Y/n] ");
+                var resolveAnswer = Console.ReadLine()?.Trim();
+                if (string.IsNullOrEmpty(resolveAnswer) || resolveAnswer.Equals("y", StringComparison.OrdinalIgnoreCase))
                 {
-                    Console.WriteLine("Aborted.");
-                    return 1;
+                    // Merge is already in progress from the check above — resolve conflicts
+                    var resolved = ResolveConflicts(git, conflicts);
+
+                    if (resolved)
+                    {
+                        // All conflicts resolved inline — commit merge and push
+                        CommitMergeAndPush(git, config, sourceBranch, targetBranch);
+                    }
+                    else
+                    {
+                        // User chose VS Code or skipped — save state for kommit continue
+                        SavePendingMr(targetBranch, selectedReviewers, currentUser, remote);
+                        Console.WriteLine($"\nAfter resolving, run 'kommit continue' — it will finish the merge and create the {platformName}.");
+                        return 1;
+                    }
+                }
+                else
+                {
+                    git.AbortMerge();
+
+                    Console.Write($"\nCreate {platformName} anyway? Conflicts will be visible on the remote. [y/N] ");
+                    var answer = Console.ReadLine()?.Trim();
+                    if (!answer?.Equals("y", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        Console.WriteLine("Aborted.");
+                        return 1;
+                    }
                 }
             }
         }
