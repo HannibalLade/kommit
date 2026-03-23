@@ -91,7 +91,9 @@ public class UpdateService
         Console.WriteLine($"New version available: v{latestDisplay}");
 
         var rid = GetRuntimeIdentifier();
-        var assetName = $"kommit-{rid}";
+        var assetName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? $"kommit-{rid}.exe"
+            : $"kommit-{rid}";
 
         string? downloadUrl = null;
         foreach (var asset in root.GetProperty("assets").EnumerateArray())
