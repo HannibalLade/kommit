@@ -130,13 +130,39 @@ public class GitService
 
     public void Pull(string strategy = "rebase")
     {
+        if (!TryPull(strategy, out var error))
+            throw new GitException(error);
+    }
+
+    public bool TryPull(string strategy, out string error)
+    {
         var args = strategy switch
         {
             "rebase" => "pull --rebase",
             "merge" => "pull",
             _ => "pull --rebase"
         };
-        RunGit(args);
+        var (_, stderr, exitCode) = RunGitRaw(args);
+        error = stderr.Trim();
+        return exitCode == 0;
+    }
+
+    public bool IsRebaseInProgress()
+    {
+        var gitDir = RunGit("rev-parse --git-dir").Trim();
+        return Directory.Exists(Path.Combine(gitDir, "rebase-merge"))
+            || Directory.Exists(Path.Combine(gitDir, "rebase-apply"));
+    }
+
+    public void AbortRebase()
+    {
+        RunGitRaw("rebase --abort");
+    }
+
+    public bool ContinueRebase()
+    {
+        var (_, _, exitCode) = RunGitRaw("rebase --continue");
+        return exitCode == 0;
     }
 
     public void Push(string strategy = "simple")

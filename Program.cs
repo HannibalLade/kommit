@@ -74,7 +74,33 @@ class Program
                         Console.WriteLine("No upstream branch — nothing to pull.");
                         return 0;
                     }
-                    git.Pull(config.PullStrategy);
+                    if (!git.TryPull(config.PullStrategy, out var pullErr))
+                    {
+                        var pullConflicts = git.GetConflictedFiles();
+                        if (pullConflicts.Count > 0)
+                        {
+                            Console.WriteLine($"Pull conflicts in {pullConflicts.Count} file(s):\n");
+                            foreach (var file in pullConflicts)
+                            {
+                                var line = GitService.GetFirstConflictLine(file);
+                                Console.WriteLine($"  {file}:{line}");
+                            }
+                            Console.Write("\nOpen in VS Code? [Y/n] ");
+                            var vsAnswer = Console.ReadLine()?.Trim();
+                            if (string.IsNullOrEmpty(vsAnswer) || vsAnswer.Equals("y", StringComparison.OrdinalIgnoreCase))
+                                MergeCommand.OpenConflictsInVSCode(pullConflicts);
+                            Console.WriteLine("Resolve the conflicts, then run 'kommit continue'.");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Pull failed: {pullErr}");
+                            if (git.IsRebaseInProgress())
+                                git.AbortRebase();
+                            else if (git.IsMergeInProgress())
+                                git.AbortMerge();
+                        }
+                        return 1;
+                    }
                     UndoCommand.RecordCommand("pull");
                     Console.WriteLine("Pull complete.");
                     return 0;
@@ -124,9 +150,39 @@ class Program
                 git.Stash();
 
             Console.WriteLine("Pulling latest changes...");
-            git.Pull(config.PullStrategy);
+            if (!git.TryPull(config.PullStrategy, out var pullError))
+            {
+                var conflicts = git.GetConflictedFiles();
+                if (conflicts.Count > 0)
+                {
+                    Console.WriteLine($"Pull conflicts in {conflicts.Count} file(s):\n");
+                    foreach (var file in conflicts)
+                    {
+                        var line = GitService.GetFirstConflictLine(file);
+                        Console.WriteLine($"  {file}:{line}");
+                    }
+                    Console.Write("\nOpen in VS Code? [Y/n] ");
+                    var vsAnswer = Console.ReadLine()?.Trim();
+                    if (string.IsNullOrEmpty(vsAnswer) || vsAnswer.Equals("y", StringComparison.OrdinalIgnoreCase))
+                        MergeCommand.OpenConflictsInVSCode(conflicts);
+                    Console.WriteLine("Resolve the conflicts, then run 'kommit continue'.");
+                    return 1;
+                }
 
-            if (needsStash && !git.StashPop())
+                Console.WriteLine($"Pull failed: {pullError}");
+                if (git.IsRebaseInProgress())
+                    git.AbortRebase();
+                else if (git.IsMergeInProgress())
+                    git.AbortMerge();
+                if (needsStash)
+                {
+                    git.StashPop();
+                    Console.WriteLine("Your local changes have been restored.");
+                }
+                Console.WriteLine("Continuing without pulling. You may need to pull manually.");
+                Console.WriteLine();
+            }
+            else if (needsStash && !git.StashPop())
             {
                 Console.WriteLine("Warning: Could not re-apply your changes after pulling. Your changes are in 'git stash'.");
                 Console.WriteLine("Run 'git stash pop' manually to recover them.");

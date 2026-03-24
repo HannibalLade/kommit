@@ -46,9 +46,12 @@ public static class MergeCommand
 
     public static int Continue(GitService git, KommitConfig config, ConfigService configService)
     {
-        if (!git.IsMergeInProgress())
+        var isRebase = git.IsRebaseInProgress();
+        var isMerge = git.IsMergeInProgress();
+
+        if (!isMerge && !isRebase)
         {
-            Console.Error.WriteLine("No merge in progress.");
+            Console.Error.WriteLine("No merge or rebase in progress.");
             return 1;
         }
 
@@ -75,6 +78,8 @@ public static class MergeCommand
         if (conflicts.Count == 0)
         {
             Console.WriteLine("All conflicts resolved.");
+            if (isRebase)
+                return ContinueRebase(git);
             return CommitAndPush(git, config, configService);
         }
 
@@ -204,7 +209,18 @@ public static class MergeCommand
         return false;
     }
 
-    private static void OpenConflictsInVSCode(IEnumerable<string> files)
+    private static int ContinueRebase(GitService git)
+    {
+        if (git.ContinueRebase())
+        {
+            Console.WriteLine("Rebase complete.");
+            return 0;
+        }
+        Console.Error.WriteLine("Rebase --continue failed. Resolve remaining conflicts and try again.");
+        return 1;
+    }
+
+    public static void OpenConflictsInVSCode(IEnumerable<string> files)
     {
         var filesWithLines = files.Select(f =>
         {
