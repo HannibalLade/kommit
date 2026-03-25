@@ -127,6 +127,10 @@ class Program
                     return UndoCommand.Run(git);
                 case "status":
                     return StatusCommand.Run(git, config);
+                case "checkout":
+                    return CheckoutCommand.Run(args, git);
+                case "switch":
+                    return SwitchCommand.Run(args, git);
             }
         }
 
@@ -303,6 +307,10 @@ class Program
         Console.WriteLine("  tag             Bump minor version and push tag");
         Console.WriteLine("    -major          Bump major version instead");
         Console.WriteLine("    -patch          Bump patch version instead");
+        Console.WriteLine("  checkout        Switch branches or list branches");
+        Console.WriteLine("    -b <branch>     Create and switch to a new branch");
+        Console.WriteLine("  switch          Switch branches or list branches");
+        Console.WriteLine("    -c <branch>     Create and switch to a new branch");
         Console.WriteLine("  undo            Undo the last kommit command");
         Console.WriteLine("  update          Check for and install the latest version");
         Console.WriteLine();

@@ -334,6 +334,35 @@ public class GitService
         return exitCode == 0 && !string.IsNullOrWhiteSpace(output);
     }
 
+    public string Checkout(string target)
+    {
+        return RunGit($"checkout {target}");
+    }
+
+    public string CheckoutNewBranch(string branchName)
+    {
+        return RunGit($"checkout -b {branchName}");
+    }
+
+    public string Switch(string target)
+    {
+        return RunGit($"switch {target}");
+    }
+
+    public string SwitchNewBranch(string branchName)
+    {
+        return RunGit($"switch -c {branchName}");
+    }
+
+    public List<string> ListBranches(bool all = false)
+    {
+        var args = all ? "branch -a" : "branch";
+        var output = RunGit(args);
+        return output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(b => b.Trim())
+            .ToList();
+    }
+
     private static string RunGit(string arguments)
     {
         var (output, error, exitCode) = RunGitRaw(arguments);
