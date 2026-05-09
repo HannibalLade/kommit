@@ -1,5 +1,6 @@
 using Kommit.Config;
 using Kommit.Git;
+using Kommit.UI;
 
 namespace Kommit.Commands;
 
@@ -16,29 +17,29 @@ public static class MergeCommand
         {
             if (branchArg is null)
             {
-                Console.Error.WriteLine("No merge in progress. Start one with: kommit merge <branch>");
+                Out.Error("No merge in progress. Start one with: kommit merge <branch>");
                 return 1;
             }
 
             var currentBranch = git.GetBranchName();
-            Console.WriteLine($"Fetching latest from origin...");
+            Out.Muted("Fetching latest from origin...");
             git.Fetch();
 
-            Console.WriteLine($"Merging {branchArg} into {currentBranch}...");
-            Console.WriteLine($"(This brings {branchArg} changes into your branch. If you have an MR, this resolves its conflicts.)\n");
+            Out.Muted($"Merging {branchArg} into {currentBranch}...");
+            Out.Muted($"(This brings {branchArg} changes into your branch. If you have an MR, this resolves its conflicts.)\n");
             var hasConflicts = git.StartMerge(branchArg);
 
             if (!hasConflicts)
             {
-                Console.WriteLine("Merged cleanly — no conflicts.");
-                Console.WriteLine($"Pushing {currentBranch}...");
+                Out.Success("Merged cleanly — no conflicts.");
+                Out.Muted($"Pushing {currentBranch}...");
                 git.Push(config.PushStrategy);
                 UndoCommand.RecordCommand("merge");
-                Console.WriteLine("Done. If you had an MR, it should now be conflict-free.");
+                Out.Success("Done. If you had an MR, it should now be conflict-free.");
                 return 0;
             }
 
-            Console.WriteLine("Merge has conflicts.\n");
+            Out.Warn("Merge has conflicts.\n");
         }
 
         return ResolveConflicts(git, config, configService, useIncoming, useCurrent);
@@ -51,7 +52,7 @@ public static class MergeCommand
 
         if (!isMerge && !isRebase)
         {
-            Console.Error.WriteLine("No merge or rebase in progress.");
+            Out.Error("No merge or rebase in progress.");
             return 1;
         }
 
@@ -69,7 +70,7 @@ public static class MergeCommand
         if (autoStaged.Count > 0)
         {
             foreach (var file in autoStaged)
-                Console.WriteLine($"Staged resolved file: {file}");
+                Out.Muted($"Staged resolved file: {file}");
             Console.WriteLine();
         }
 
@@ -77,17 +78,17 @@ public static class MergeCommand
         conflicts = git.GetConflictedFiles();
         if (conflicts.Count == 0)
         {
-            Console.WriteLine("All conflicts resolved.");
+            Out.Success("All conflicts resolved.");
             if (isRebase)
                 return ContinueRebase(git);
             return CommitAndPush(git, config, configService);
         }
 
-        Console.WriteLine($"{conflicts.Count} conflict(s) still unresolved:\n");
+        Out.Warn($"{conflicts.Count} conflict(s) still unresolved:\n");
         foreach (var file in conflicts)
         {
             var line = GitService.GetFirstConflictLine(file);
-            Console.WriteLine($"  {file}:{line}");
+            Out.Warn($"  {file}:{line}");
         }
 
         Console.Write("\nOpen in VS Code? [Y/n] ");
@@ -95,11 +96,11 @@ public static class MergeCommand
         if (string.IsNullOrEmpty(answer) || answer.Equals("y", StringComparison.OrdinalIgnoreCase))
         {
             OpenConflictsInVSCode(conflicts);
-            Console.WriteLine("Fix the conflicts in VS Code, then run 'kommit continue' again.");
+            Out.Warn("Fix the conflicts in VS Code, then run 'kommit continue' again.");
         }
         else
         {
-            Console.WriteLine("Fix the conflicts manually, then run 'kommit continue' again.");
+            Out.Warn("Fix the conflicts manually, then run 'kommit continue' again.");
         }
 
         return 1;
@@ -118,15 +119,15 @@ public static class MergeCommand
         if (useIncoming || useCurrent)
         {
             var strategy = useIncoming ? "incoming" : "current";
-            Console.WriteLine($"Resolving all {conflicts.Count} conflict(s) by accepting {strategy} changes:");
+            Out.Warn($"Resolving all {conflicts.Count} conflict(s) by accepting {strategy} changes:");
             foreach (var file in conflicts)
-                Console.WriteLine($"  - {file}");
+                Out.Warn($"  - {file}");
 
             Console.Write("\nAre you sure? [y/N] ");
             var answer = Console.ReadLine()?.Trim();
             if (!answer?.Equals("y", StringComparison.OrdinalIgnoreCase) == true)
             {
-                Console.WriteLine("Aborted.");
+                Out.Warn("Aborted.");
                 return 1;
             }
 
@@ -136,17 +137,17 @@ public static class MergeCommand
                 git.AcceptCurrent(conflicts);
 
             git.StageFiles(conflicts);
-            Console.WriteLine(useIncoming ? "Accepted all incoming changes." : "Kept all current changes.");
+            Out.Success(useIncoming ? "Accepted all incoming changes." : "Kept all current changes.");
             return CommitAndPush(git, config, configService);
         }
 
         // Interactive per-file resolution
-        Console.WriteLine($"{conflicts.Count} conflicted file(s):\n");
+        Out.Warn($"{conflicts.Count} conflicted file(s):\n");
 
         foreach (var file in conflicts)
         {
             var line = GitService.GetFirstConflictLine(file);
-            Console.WriteLine($"  {file}:{line}");
+            Out.Warn($"  {file}:{line}");
             Console.Write("  [i]ncoming / [c]urrent / [v]scode / [s]kip? ");
 
             while (true)
@@ -156,31 +157,31 @@ public static class MergeCommand
                 {
                     git.AcceptIncoming(new[] { file });
                     git.StageFiles(new[] { file });
-                    Console.WriteLine("  -> accepted incoming\n");
+                    Out.Muted("  -> accepted incoming\n");
                     break;
                 }
                 if (input is "c" or "current")
                 {
                     git.AcceptCurrent(new[] { file });
                     git.StageFiles(new[] { file });
-                    Console.WriteLine("  -> kept current\n");
+                    Out.Muted("  -> kept current\n");
                     break;
                 }
                 if (input is "v" or "vscode")
                 {
                     OpenConflictsInVSCode(new[] { file });
-                    Console.WriteLine("  -> opened in VS Code");
-                    Console.WriteLine("  Fix the conflict, then run 'kommit continue'.\n");
+                    Out.Muted("  -> opened in VS Code");
+                    Out.Warn("  Fix the conflict, then run 'kommit continue'.\n");
                     var remaining = git.GetConflictedFiles();
                     if (remaining.Count > 0)
                     {
-                        Console.WriteLine($"{remaining.Count} conflict(s) remaining. Run 'kommit continue' after resolving.");
+                        Out.Warn($"{remaining.Count} conflict(s) remaining. Run 'kommit continue' after resolving.");
                     }
                     return 1;
                 }
                 if (input is "s" or "skip")
                 {
-                    Console.WriteLine("  -> skipped\n");
+                    Out.Muted("  -> skipped\n");
                     break;
                 }
                 Console.Write("  [i]ncoming / [c]urrent / [v]scode / [s]kip? ");
@@ -190,8 +191,8 @@ public static class MergeCommand
         var stillUnresolved = git.GetConflictedFiles();
         if (stillUnresolved.Count > 0)
         {
-            Console.WriteLine($"{stillUnresolved.Count} conflict(s) still unresolved.");
-            Console.WriteLine("Resolve them manually or run 'kommit continue'.");
+            Out.Warn($"{stillUnresolved.Count} conflict(s) still unresolved.");
+            Out.Warn("Resolve them manually or run 'kommit continue'.");
             return 1;
         }
 
@@ -213,10 +214,10 @@ public static class MergeCommand
     {
         if (git.ContinueRebase())
         {
-            Console.WriteLine("Rebase complete.");
+            Out.Success("Rebase complete.");
             return 0;
         }
-        Console.Error.WriteLine("Rebase --continue failed. Resolve remaining conflicts and try again.");
+        Out.Error("Rebase --continue failed. Resolve remaining conflicts and try again.");
         return 1;
     }
 
@@ -243,12 +244,12 @@ public static class MergeCommand
         var message = $"fix: {description}";
 
         git.Commit(message);
-        Console.WriteLine(message);
+        Out.Info(message);
 
-        Console.WriteLine($"Pushing {currentBranch}...");
+        Out.Muted($"Pushing {currentBranch}...");
         git.Push(config.PushStrategy);
         UndoCommand.RecordCommand("merge");
-        Console.WriteLine("Done. If you had an MR, it should now be conflict-free.");
+        Out.Success("Done. If you had an MR, it should now be conflict-free.");
 
         // Check if there's a pending MR to resume
         MrCommand.TryResumePendingMr(git, config, configService);

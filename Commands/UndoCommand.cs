@@ -1,4 +1,5 @@
 using Kommit.Git;
+using Kommit.UI;
 
 namespace Kommit.Commands;
 
@@ -22,7 +23,7 @@ public static class UndoCommand
     {
         if (!File.Exists(LastCommandPath))
         {
-            Console.Error.WriteLine("Nothing to undo. No previous kommit command found.");
+            Out.Error("Nothing to undo. No previous kommit command found.");
             return 1;
         }
 
@@ -37,68 +38,68 @@ public static class UndoCommand
             case "commit":
                 var lastMessage = git.GetLastCommitMessage();
                 git.UndoLastCommit();
-                Console.WriteLine($"Undid commit: {lastMessage}");
-                Console.WriteLine("Changes are back in staging.");
+                Out.Success($"Undid commit: {lastMessage}");
+                Out.Success("Changes are back in staging.");
                 return 0;
 
             case "tag":
                 var tag = detail;
                 if (tag is null)
                 {
-                    Console.Error.WriteLine("Cannot undo tag: missing tag info.");
+                    Out.Error("Cannot undo tag: missing tag info.");
                     return 1;
                 }
                 git.DeleteTag(tag);
                 git.UndoLastCommit();
-                Console.WriteLine($"Undid tag: {tag}");
-                Console.WriteLine("Deleted local tag and undid version bump commit.");
-                Console.WriteLine("Changes are back in staging.");
+                Out.Success($"Undid tag: {tag}");
+                Out.Success("Deleted local tag and undid version bump commit.");
+                Out.Success("Changes are back in staging.");
                 Console.WriteLine();
                 Console.WriteLine("If the tag was already pushed, also run:");
-                Console.WriteLine($"  git push origin :refs/tags/{tag}");
+                Out.Info($"  git push origin :refs/tags/{tag}");
                 return 0;
 
             case "merge":
-                Console.Error.WriteLine("Cannot automatically undo a merge.");
+                Out.Error("Cannot automatically undo a merge.");
                 Console.WriteLine();
                 Console.WriteLine("To undo the merge locally:");
-                Console.WriteLine("  git reset --hard HEAD~1");
+                Out.Info("  git reset --hard HEAD~1");
                 Console.WriteLine();
                 Console.WriteLine("If already pushed, revert it instead:");
-                Console.WriteLine("  git revert -m 1 HEAD");
-                Console.WriteLine("  git push");
+                Out.Info("  git revert -m 1 HEAD");
+                Out.Info("  git push");
                 return 1;
 
             case "push":
-                Console.Error.WriteLine("Cannot automatically undo a push.");
+                Out.Error("Cannot automatically undo a push.");
                 Console.WriteLine();
                 Console.WriteLine("To undo the last pushed commit:");
-                Console.WriteLine("  git reset --soft HEAD~1");
-                Console.WriteLine("  git push --force-with-lease");
+                Out.Info("  git reset --soft HEAD~1");
+                Out.Info("  git push --force-with-lease");
                 Console.WriteLine();
                 Console.WriteLine("On GitHub/GitLab, you can also revert via the web UI.");
                 return 1;
 
             case "mr":
-                Console.Error.WriteLine("Cannot automatically undo a merge request.");
+                Out.Error("Cannot automatically undo a merge request.");
                 Console.WriteLine();
                 Console.WriteLine("To close the merge request:");
                 if (detail is not null)
-                    Console.WriteLine($"  Visit: {detail}");
+                    Out.Info($"  Visit: {detail}");
                 else
                     Console.WriteLine("  Close it from your GitHub/GitLab web UI.");
                 return 1;
 
             case "pull":
-                Console.Error.WriteLine("Cannot automatically undo a pull.");
+                Out.Error("Cannot automatically undo a pull.");
                 Console.WriteLine();
                 Console.WriteLine("To undo, reset to your previous position:");
-                Console.WriteLine("  git reflog  (find the commit before the pull)");
-                Console.WriteLine("  git reset --hard <commit>");
+                Out.Info("  git reflog  (find the commit before the pull)");
+                Out.Info("  git reset --hard <commit>");
                 return 1;
 
             default:
-                Console.Error.WriteLine($"Unknown command '{command}' — cannot undo.");
+                Out.Error($"Unknown command '{command}' — cannot undo.");
                 return 1;
         }
     }

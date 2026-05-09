@@ -1,5 +1,6 @@
 using Kommit.Config;
 using Kommit.Git;
+using Kommit.UI;
 
 namespace Kommit.Commands;
 
@@ -19,10 +20,10 @@ public static class MrCommand
         var autoCurrent = args.Any(a => a is "-current" or "--current");
         if (targetBranch is null)
         {
-            Console.Error.WriteLine("Usage: kommit mr <target-branch> [-incoming | -current]");
-            Console.Error.WriteLine("Example: kommit mr develop");
-            Console.Error.WriteLine("         kommit mr develop -incoming  (auto-accept incoming on conflicts)");
-            Console.Error.WriteLine("         kommit mr develop -current   (auto-keep current on conflicts)");
+            Out.Error("Usage: kommit mr <target-branch> [-incoming | -current]");
+            Out.Error("Example: kommit mr develop");
+            Out.Error("         kommit mr develop -incoming  (auto-accept incoming on conflicts)");
+            Out.Error("         kommit mr develop -current   (auto-keep current on conflicts)");
             return 1;
         }
 
@@ -32,7 +33,7 @@ public static class MrCommand
 
         if (remote.Platform == Platform.Unknown)
         {
-            Console.Error.WriteLine($"Could not detect platform from remote: {remoteUrl}");
+            Out.Error($"Could not detect platform from remote: {remoteUrl}");
             return 1;
         }
 
@@ -50,7 +51,7 @@ public static class MrCommand
         var service = new MergeRequestService(token);
 
         // Get current user for auto-assignee
-        Console.WriteLine("Fetching project info...");
+        Out.Muted("Fetching project info...");
         var currentUser = service.GetCurrentUsername(remote).GetAwaiter().GetResult();
         var members = service.GetProjectMembers(remote).GetAwaiter().GetResult();
 
@@ -62,26 +63,26 @@ public static class MrCommand
         }
         else
         {
-            Console.WriteLine("No project members found.");
+            Out.Muted("No project members found.");
         }
 
         // Push branch
-        Console.WriteLine($"\nPushing {sourceBranch}...");
+        Out.Muted($"\nPushing {sourceBranch}...");
         git.PushBranch();
 
         // Check for conflicts
-        Console.WriteLine($"Checking for conflicts with {targetBranch}...");
+        Out.Muted($"Checking for conflicts with {targetBranch}...");
         git.Fetch();
         var hasConflicts = git.StartMerge($"origin/{targetBranch}");
 
         if (hasConflicts)
         {
             var conflicts = git.GetConflictedFiles();
-            Console.WriteLine($"\nConflicts detected with {targetBranch} ({conflicts.Count} file(s)):");
+            Out.Warn($"\nConflicts detected with {targetBranch} ({conflicts.Count} file(s)):");
             foreach (var file in conflicts)
             {
                 var line = GitService.GetFirstConflictLine(file);
-                Console.WriteLine($"  - {file}:{line}");
+                Out.Warn($"  - {file}:{line}");
             }
 
             if (autoIncoming || autoCurrent)
@@ -93,13 +94,13 @@ public static class MrCommand
                     git.AcceptCurrent(conflicts);
 
                 git.StageFiles(conflicts);
-                Console.WriteLine(autoIncoming ? "Accepted all incoming changes." : "Kept all current changes.");
+                Out.Success(autoIncoming ? "Accepted all incoming changes." : "Kept all current changes.");
                 CommitMergeAndPush(git, config, sourceBranch, targetBranch);
             }
             else
             {
-                Console.WriteLine($"\nTo create the {platformName}, these conflicts need to be resolved first.");
-                Console.WriteLine($"This merges {targetBranch} into {sourceBranch} so your branch is up to date.\n");
+                Out.Warn($"\nTo create the {platformName}, these conflicts need to be resolved first.");
+                Out.Warn($"This merges {targetBranch} into {sourceBranch} so your branch is up to date.\n");
 
                 Console.Write("Resolve now? [Y/n] ");
                 var resolveAnswer = Console.ReadLine()?.Trim();
@@ -117,7 +118,7 @@ public static class MrCommand
                     {
                         // User chose VS Code or skipped — save state for kommit continue
                         SavePendingMr(targetBranch, selectedReviewers, currentUser, remote);
-                        Console.WriteLine($"\nAfter resolving, run 'kommit continue' — it will finish the merge and create the {platformName}.");
+                        Out.Warn($"\nAfter resolving, run 'kommit continue' — it will finish the merge and create the {platformName}.");
                         return 1;
                     }
                 }
@@ -129,7 +130,7 @@ public static class MrCommand
                     var answer = Console.ReadLine()?.Trim();
                     if (!answer?.Equals("y", StringComparison.OrdinalIgnoreCase) == true)
                     {
-                        Console.WriteLine("Aborted.");
+                        Out.Warn("Aborted.");
                         return 1;
                     }
                 }
@@ -138,7 +139,7 @@ public static class MrCommand
         else
         {
             git.AbortMerge();
-            Console.WriteLine("No conflicts.");
+            Out.Success("No conflicts.");
         }
 
         return CreateMr(git, config, service, remote, sourceBranch, targetBranch, selectedReviewers, currentUser);
@@ -150,26 +151,26 @@ public static class MrCommand
     {
         var platformName = remote.Platform == Platform.GitHub ? "pull request" : "merge request";
         var title = MergeRequestService.GenerateTitle(sourceBranch);
-        Console.WriteLine($"Creating {platformName}: \"{title}\"...");
+        Out.Muted($"Creating {platformName}: \"{title}\"...");
 
         if (currentUser is not null)
-            Console.WriteLine($"Assignee: {currentUser}");
+            Out.Muted($"Assignee: {currentUser}");
         if (selectedReviewers.Count > 0)
-            Console.WriteLine($"Reviewers: {string.Join(", ", selectedReviewers)}");
+            Out.Muted($"Reviewers: {string.Join(", ", selectedReviewers)}");
         else
-            Console.WriteLine("No reviewers selected.");
+            Out.Muted("No reviewers selected.");
 
         var result = service.CreateMergeRequest(remote, sourceBranch, targetBranch, title, selectedReviewers, currentUser)
             .GetAwaiter().GetResult();
 
         if (result is null)
         {
-            Console.Error.WriteLine($"Failed to create {platformName}.");
+            Out.Error($"Failed to create {platformName}.");
             return 1;
         }
 
         UndoCommand.RecordCommand("mr", result);
-        Console.WriteLine(result);
+        Out.Info(result);
         return 0;
     }
 
@@ -196,7 +197,7 @@ public static class MrCommand
         var answer = Console.ReadLine()?.Trim();
         if (!string.IsNullOrEmpty(answer) && !answer.Equals("y", StringComparison.OrdinalIgnoreCase))
         {
-            Console.WriteLine($"Skipped. You can create it later with 'kommit mr {targetBranch}'.");
+            Out.Muted($"Skipped. You can create it later with 'kommit mr {targetBranch}'.");
             return true;
         }
 
@@ -218,7 +219,7 @@ public static class MrCommand
     {
         var useIncoming = false;
 
-        Console.WriteLine($"How do you want to resolve all {conflicts.Count} conflict(s)?\n");
+        Out.Warn($"How do you want to resolve all {conflicts.Count} conflict(s)?\n");
         Console.Write("[i]ncoming / [c]urrent / [v]scode / [o]ne-by-one? ");
 
         while (true)
@@ -237,7 +238,7 @@ public static class MrCommand
             if (input is "v" or "vscode")
             {
                 OpenConflictsInVSCode(conflicts);
-                Console.WriteLine("Fix the conflicts in VS Code, then run 'kommit continue'.");
+                Out.Warn("Fix the conflicts in VS Code, then run 'kommit continue'.");
                 return false;
             }
             if (input is "o" or "one-by-one")
@@ -254,7 +255,7 @@ public static class MrCommand
             git.AcceptCurrent(conflicts);
 
         git.StageFiles(conflicts);
-        Console.WriteLine(useIncoming ? "Accepted all incoming changes." : "Kept all current changes.");
+        Out.Success(useIncoming ? "Accepted all incoming changes." : "Kept all current changes.");
         return true;
     }
 
@@ -263,7 +264,7 @@ public static class MrCommand
         foreach (var file in conflicts)
         {
             var line = GitService.GetFirstConflictLine(file);
-            Console.WriteLine($"\n  {file}:{line}");
+            Out.Warn($"\n  {file}:{line}");
             Console.Write("  [i]ncoming / [c]urrent / [v]scode / [s]kip? ");
 
             while (true)
@@ -273,26 +274,26 @@ public static class MrCommand
                 {
                     git.AcceptIncoming(new[] { file });
                     git.StageFiles(new[] { file });
-                    Console.WriteLine("  -> accepted incoming");
+                    Out.Muted("  -> accepted incoming");
                     break;
                 }
                 if (input is "c" or "current")
                 {
                     git.AcceptCurrent(new[] { file });
                     git.StageFiles(new[] { file });
-                    Console.WriteLine("  -> kept current");
+                    Out.Muted("  -> kept current");
                     break;
                 }
                 if (input is "v" or "vscode")
                 {
                     OpenConflictsInVSCode(new[] { file });
-                    Console.WriteLine("  -> opened in VS Code");
-                    Console.WriteLine("  Fix the conflicts, then run 'kommit continue'.");
+                    Out.Muted("  -> opened in VS Code");
+                    Out.Warn("  Fix the conflicts, then run 'kommit continue'.");
                     return false;
                 }
                 if (input is "s" or "skip")
                 {
-                    Console.WriteLine("  -> skipped");
+                    Out.Muted("  -> skipped");
                     break;
                 }
                 Console.Write("  [i]ncoming / [c]urrent / [v]scode / [s]kip? ");
@@ -303,7 +304,7 @@ public static class MrCommand
         var remaining = git.GetConflictedFiles();
         if (remaining.Count > 0)
         {
-            Console.WriteLine($"\n{remaining.Count} conflict(s) still unresolved. Run 'kommit continue' after resolving.");
+            Out.Warn($"\n{remaining.Count} conflict(s) still unresolved. Run 'kommit continue' after resolving.");
             return false;
         }
 
@@ -314,9 +315,9 @@ public static class MrCommand
     {
         var message = $"merge {targetBranch} into {sourceBranch}";
         git.Commit(message);
-        Console.WriteLine($"\nCommitted: {message}");
+        Out.Info($"\nCommitted: {message}");
 
-        Console.WriteLine($"Pushing {sourceBranch}...");
+        Out.Muted($"Pushing {sourceBranch}...");
         git.Push(config.PushStrategy);
     }
 
@@ -367,7 +368,7 @@ public static class MrCommand
         var selected = new HashSet<int>();
         var cursorIndex = 0;
 
-        Console.WriteLine("\nSelect reviewers (Space to toggle, Enter to confirm):\n");
+        Out.Info("\nSelect reviewers (Space to toggle, Enter to confirm):\n");
 
         string FormatLine(int i)
         {
@@ -458,24 +459,24 @@ public static class MrCommand
 
     private static KommitConfig PromptForApiToken(KommitConfig config, ConfigService configService, Platform platform)
     {
-        Console.WriteLine("No API token configured.\n");
+        Out.Warn("No API token configured.\n");
 
         if (platform == Platform.GitHub)
         {
             Console.WriteLine("To create a GitHub Personal Access Token:");
-            Console.WriteLine("  1. Go to GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens");
-            Console.WriteLine("  2. Click 'Generate new token'");
-            Console.WriteLine("  3. Give it a name (e.g. 'kommit')");
-            Console.WriteLine("  4. Under 'Repository permissions', set 'Pull requests' to 'Read and write'");
-            Console.WriteLine("  5. Click 'Generate token' and copy it");
+            Out.Muted("  1. Go to GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens");
+            Out.Muted("  2. Click 'Generate new token'");
+            Out.Muted("  3. Give it a name (e.g. 'kommit')");
+            Out.Muted("  4. Under 'Repository permissions', set 'Pull requests' to 'Read and write'");
+            Out.Muted("  5. Click 'Generate token' and copy it");
         }
         else
         {
             Console.WriteLine("To create a GitLab Personal Access Token:");
-            Console.WriteLine("  1. Go to GitLab → Settings → Access Tokens");
-            Console.WriteLine("  2. Give it a name (e.g. 'kommit')");
-            Console.WriteLine("  3. Select the 'api' scope");
-            Console.WriteLine("  4. Click 'Create personal access token' and copy it");
+            Out.Muted("  1. Go to GitLab → Settings → Access Tokens");
+            Out.Muted("  2. Give it a name (e.g. 'kommit')");
+            Out.Muted("  3. Select the 'api' scope");
+            Out.Muted("  4. Click 'Create personal access token' and copy it");
         }
 
         Console.Write("\nPaste your token here (or press Enter to cancel): ");
@@ -483,13 +484,13 @@ public static class MrCommand
 
         if (string.IsNullOrEmpty(token))
         {
-            Console.WriteLine("Cancelled.");
+            Out.Warn("Cancelled.");
             return config;
         }
 
         config.SetTokenForPlatform(platform, token);
         configService.Save(config);
-        Console.WriteLine("Token saved to ~/.kommit/config.json\n");
+        Out.Success("Token saved to ~/.kommit/config.json\n");
 
         return config;
     }

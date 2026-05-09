@@ -32,14 +32,14 @@ class Program
 
         if (!GitService.IsGitInstalled())
         {
-            Console.Error.WriteLine("Git is not installed or not in your PATH.");
-            Console.Error.WriteLine("Install git: https://git-scm.com/downloads");
+            Out.Error("Git is not installed or not in your PATH.");
+            Out.Error("Install git: https://git-scm.com/downloads");
             return 1;
         }
 
         if (!GitService.IsGitRepo())
         {
-            Console.Error.WriteLine("Not a git repository. Run 'git init' to create one.");
+            Out.Error("Not a git repository. Run 'git init' to create one.");
             return 1;
         }
 
@@ -49,7 +49,7 @@ class Program
         }
         catch (GitException ex)
         {
-            Console.Error.WriteLine($"Git error: {ex.Message}");
+            Out.Error($"Git error: {ex.Message}");
             return 1;
         }
     }
@@ -71,7 +71,7 @@ class Program
                 case "pull":
                     if (!git.HasUpstream())
                     {
-                        Console.WriteLine("No upstream branch — nothing to pull.");
+                        Out.Warn("No upstream branch — nothing to pull.");
                         return 0;
                     }
                     if (!git.TryPull(config.PullStrategy, out var pullErr))
@@ -79,21 +79,21 @@ class Program
                         var pullConflicts = git.GetConflictedFiles();
                         if (pullConflicts.Count > 0)
                         {
-                            Console.WriteLine($"Pull conflicts in {pullConflicts.Count} file(s):\n");
+                            Out.Warn($"Pull conflicts in {pullConflicts.Count} file(s):\n");
                             foreach (var file in pullConflicts)
                             {
                                 var line = GitService.GetFirstConflictLine(file);
-                                Console.WriteLine($"  {file}:{line}");
+                                Out.Warn($"  {file}:{line}");
                             }
                             Console.Write("\nOpen in VS Code? [Y/n] ");
                             var vsAnswer = Console.ReadLine()?.Trim();
                             if (string.IsNullOrEmpty(vsAnswer) || vsAnswer.Equals("y", StringComparison.OrdinalIgnoreCase))
                                 MergeCommand.OpenConflictsInVSCode(pullConflicts);
-                            Console.WriteLine("Resolve the conflicts, then run 'kommit continue'.");
+                            Out.Warn("Resolve the conflicts, then run 'kommit continue'.");
                         }
                         else
                         {
-                            Console.WriteLine($"Pull failed: {pullErr}");
+                            Out.Error($"Pull failed: {pullErr}");
                             if (git.IsRebaseInProgress())
                                 git.AbortRebase();
                             else if (git.IsMergeInProgress())
@@ -102,18 +102,18 @@ class Program
                         return 1;
                     }
                     UndoCommand.RecordCommand("pull");
-                    Console.WriteLine("Pull complete.");
+                    Out.Success("Pull complete.");
                     return 0;
                 case "push":
                     if (args.Contains("--preview"))
                     {
-                        Console.WriteLine($"[preview] Would push to origin using strategy: {config.PushStrategy}");
+                        Out.Info($"[preview] Would push to origin using strategy: {config.PushStrategy}");
                         return 0;
                     }
-                    Console.WriteLine($"Pushing to origin ({config.PushStrategy})...");
+                    Out.Muted($"Pushing to origin ({config.PushStrategy})...");
                     git.Push(config.PushStrategy);
                     UndoCommand.RecordCommand("push");
-                    Console.WriteLine("Push complete.");
+                    Out.Success("Push complete.");
                     return 0;
                 case "tag":
                     return TagCommand.Run(args, git, args.Contains("--preview"));
@@ -140,7 +140,7 @@ class Program
         var branch = git.GetBranchName();
         if (branch == "HEAD")
         {
-            Console.WriteLine("Warning: You are in detached HEAD state. Branch-based type inference won't work.");
+            Out.Warn("Warning: You are in detached HEAD state. Branch-based type inference won't work.");
             Console.Write("Continue anyway? [Y/n] ");
             var answer = Console.ReadLine()?.Trim();
             if (answer?.Equals("n", StringComparison.OrdinalIgnoreCase) == true)
@@ -153,27 +153,27 @@ class Program
             if (needsStash)
                 git.Stash();
 
-            Console.WriteLine("Pulling latest changes...");
+            Out.Muted("Pulling latest changes...");
             if (!git.TryPull(config.PullStrategy, out var pullError))
             {
                 var conflicts = git.GetConflictedFiles();
                 if (conflicts.Count > 0)
                 {
-                    Console.WriteLine($"Pull conflicts in {conflicts.Count} file(s):\n");
+                    Out.Warn($"Pull conflicts in {conflicts.Count} file(s):\n");
                     foreach (var file in conflicts)
                     {
                         var line = GitService.GetFirstConflictLine(file);
-                        Console.WriteLine($"  {file}:{line}");
+                        Out.Warn($"  {file}:{line}");
                     }
                     Console.Write("\nOpen in VS Code? [Y/n] ");
                     var vsAnswer = Console.ReadLine()?.Trim();
                     if (string.IsNullOrEmpty(vsAnswer) || vsAnswer.Equals("y", StringComparison.OrdinalIgnoreCase))
                         MergeCommand.OpenConflictsInVSCode(conflicts);
-                    Console.WriteLine("Resolve the conflicts, then run 'kommit continue'.");
+                    Out.Warn("Resolve the conflicts, then run 'kommit continue'.");
                     return 1;
                 }
 
-                Console.WriteLine($"Pull failed: {pullError}");
+                Out.Error($"Pull failed: {pullError}");
                 if (git.IsRebaseInProgress())
                     git.AbortRebase();
                 else if (git.IsMergeInProgress())
@@ -181,15 +181,15 @@ class Program
                 if (needsStash)
                 {
                     git.StashPop();
-                    Console.WriteLine("Your local changes have been restored.");
+                    Out.Warn("Your local changes have been restored.");
                 }
-                Console.WriteLine("Continuing without pulling. You may need to pull manually.");
+                Out.Warn("Continuing without pulling. You may need to pull manually.");
                 Console.WriteLine();
             }
             else if (needsStash && !git.StashPop())
             {
-                Console.WriteLine("Warning: Could not re-apply your changes after pulling. Your changes are in 'git stash'.");
-                Console.WriteLine("Run 'git stash pop' manually to recover them.");
+                Out.Warn("Warning: Could not re-apply your changes after pulling. Your changes are in 'git stash'.");
+                Out.Warn("Run 'git stash pop' manually to recover them.");
                 return 1;
             }
         }
@@ -206,7 +206,7 @@ class Program
 
         if (!git.HasStagedChanges())
         {
-            Console.Error.WriteLine("No staged changes found. Stage your changes with 'git add' first.");
+            Out.Error("No staged changes found. Stage your changes with 'git add' first.");
             return 1;
         }
 
@@ -217,7 +217,7 @@ class Program
             var edited = PromptEditor.Edit("Commit message: ", "");
             if (edited is null)
             {
-                Console.WriteLine("Aborted.");
+                Out.Warn("Aborted.");
                 return 1;
             }
             finalMessage = edited;
@@ -253,7 +253,7 @@ class Program
                 var edited = PromptEditor.Edit("Commit message (enter to accept): ", finalMessage);
                 if (edited is null)
                 {
-                    Console.WriteLine("Aborted.");
+                    Out.Warn("Aborted.");
                     return 1;
                 }
                 finalMessage = edited;
@@ -262,18 +262,18 @@ class Program
 
         if (preview)
         {
-            Console.WriteLine(finalMessage);
+            Out.Info(finalMessage);
             return 0;
         }
 
         git.Commit(finalMessage);
         UndoCommand.RecordCommand("commit");
-        Console.WriteLine(finalMessage);
+        Out.Info(finalMessage);
 
         if (config.AutoPush)
         {
             git.Push(config.PushStrategy);
-            Console.WriteLine("Pushed.");
+            Out.Success("Pushed.");
         }
 
         return 0;

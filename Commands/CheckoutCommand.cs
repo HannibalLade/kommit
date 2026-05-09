@@ -1,4 +1,5 @@
 using Kommit.Git;
+using Kommit.UI;
 
 namespace Kommit.Commands;
 
@@ -21,18 +22,18 @@ public static class CheckoutCommand
             var idx = Array.IndexOf(args, "-b");
             if (idx + 1 >= args.Length)
             {
-                Console.Error.WriteLine("Usage: kommit checkout -b <branch-name>");
+                Out.Error("Usage: kommit checkout -b <branch-name>");
                 return 1;
             }
             var branchName = args[idx + 1];
             git.CheckoutNewBranch(branchName);
-            Console.WriteLine($"Switched to new branch '{branchName}'");
+            Out.Success($"Switched to new branch '{branchName}'");
             return 0;
         }
 
         var target = args[1];
         git.Checkout(target);
-        Console.WriteLine($"Switched to branch '{target}'");
+        Out.Success($"Switched to branch '{target}'");
         return 0;
     }
 }

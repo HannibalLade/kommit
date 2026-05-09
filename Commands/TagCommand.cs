@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Kommit.Git;
+using Kommit.UI;
 
 namespace Kommit.Commands;
 
@@ -38,41 +39,41 @@ public static class TagCommand
 
         if (preview)
         {
-            Console.WriteLine($"[preview] Would bump {bump} version: {latest ?? "v0.0.0"} -> {tag}");
+            Out.Info($"[preview] Would bump {bump} version: {latest ?? "v0.0.0"} -> {tag}");
             if (projectFile is not null)
-                Console.WriteLine($"[preview] Update version in {Path.GetFileName(projectFile)}");
+                Out.Info($"[preview] Update version in {Path.GetFileName(projectFile)}");
             else
-                Console.WriteLine("[preview] No project file found — tag only, no version file update");
-            Console.WriteLine($"[preview] Create tag {tag}");
-            Console.WriteLine($"[preview] Push tag to origin");
+                Out.Info("[preview] No project file found — tag only, no version file update");
+            Out.Info($"[preview] Create tag {tag}");
+            Out.Info($"[preview] Push tag to origin");
             return 0;
         }
 
-        Console.WriteLine($"Bumping {bump} version: {latest ?? "v0.0.0"} -> {tag}");
+        Out.Muted($"Bumping {bump} version: {latest ?? "v0.0.0"} -> {tag}");
 
         if (projectFile is not null)
         {
-            Console.WriteLine($"Updating version in {Path.GetFileName(projectFile)}...");
+            Out.Muted($"Updating version in {Path.GetFileName(projectFile)}...");
             UpdateVersionFile(projectFile, versionString);
 
-            Console.WriteLine("Staging changes...");
+            Out.Muted("Staging changes...");
             git.StageAll();
 
-            Console.WriteLine($"Committing: chore: bump version to {tag}");
+            Out.Muted($"Committing: chore: bump version to {tag}");
             git.Commit($"chore: bump version to {tag}");
 
-            Console.WriteLine("Pushing commit...");
+            Out.Muted("Pushing commit...");
             git.Push("simple");
         }
 
-        Console.WriteLine($"Creating tag {tag}...");
+        Out.Muted($"Creating tag {tag}...");
         git.CreateTag(tag);
 
-        Console.WriteLine($"Pushing tag {tag}...");
+        Out.Muted($"Pushing tag {tag}...");
         git.PushTag(tag);
 
         UndoCommand.RecordCommand("tag", tag);
-        Console.WriteLine($"Done. Released {tag}");
+        Out.Success($"Done. Released {tag}");
 
         return 0;
     }

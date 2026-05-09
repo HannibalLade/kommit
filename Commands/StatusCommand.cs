@@ -1,6 +1,7 @@
 using Kommit.Analysis;
 using Kommit.Config;
 using Kommit.Git;
+using Kommit.UI;
 
 namespace Kommit.Commands;
 
@@ -10,7 +11,7 @@ public static class StatusCommand
     {
         if (!git.HasStagedChanges())
         {
-            Console.Error.WriteLine("No staged changes.");
+            Out.Error("No staged changes.");
             return 1;
         }
 
@@ -26,11 +27,11 @@ public static class StatusCommand
         if (config.MaxCommitLength > 0 && finalMessage.Length > config.MaxCommitLength)
             finalMessage = finalMessage[..(config.MaxCommitLength - 3)] + "...";
 
-        Console.WriteLine($"Message: {finalMessage}");
-        Console.WriteLine($"\n{diff.ChangedFiles.Count} staged file(s):");
+        Out.Info($"Message: {finalMessage}");
+        Out.Muted($"\n{diff.ChangedFiles.Count} staged file(s):");
         foreach (var file in diff.ChangedFiles)
-            Console.WriteLine($"  {file}");
-        Console.WriteLine($"\n+{diff.LinesAdded} -{diff.LinesDeleted} lines");
+            Out.Muted($"  {file}");
+        Out.Muted($"\n+{diff.LinesAdded} -{diff.LinesDeleted} lines");
 
         return 0;
     }

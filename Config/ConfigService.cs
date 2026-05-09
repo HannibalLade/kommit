@@ -39,13 +39,13 @@ public class ConfigService
             return new KommitConfig();
 
         var json = File.ReadAllText(ConfigPath);
-        return JsonSerializer.Deserialize<KommitConfig>(json, JsonOptions) ?? new KommitConfig();
+        return JsonSerializer.Deserialize(json, KommitConfigContext.Default.KommitConfig) ?? new KommitConfig();
     }
 
     public void Save(KommitConfig config)
     {
         Directory.CreateDirectory(KommitDir);
-        var json = JsonSerializer.Serialize(config, JsonOptions);
+        var json = JsonSerializer.Serialize(config, KommitConfigContext.Default.KommitConfig);
         File.WriteAllText(ConfigPath, json);
     }
 }

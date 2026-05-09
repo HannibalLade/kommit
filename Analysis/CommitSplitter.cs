@@ -37,8 +37,8 @@ public class CommitSplitter
     {
         var remainingFiles = new List<string>(diff.ChangedFiles);
 
-        Console.WriteLine($"Staged changes exceed configured threshold ({remainingFiles.Count} files).");
-        Console.WriteLine("Let's split this into smaller commits.\n");
+        Out.Warn($"Staged changes exceed configured threshold ({remainingFiles.Count} files).");
+        Out.Warn("Let's split this into smaller commits.\n");
 
         int commitCount = 0;
 
@@ -66,7 +66,7 @@ public class CommitSplitter
                 var indices = ParseIndices(input, remainingFiles.Count);
                 if (indices.Count == 0)
                 {
-                    Console.WriteLine("Invalid selection. Try again.\n");
+                    Out.Warn("Invalid selection. Try again.\n");
                     continue;
                 }
                 selectedFiles = indices.Select(i => remainingFiles[i]).ToList();
@@ -82,21 +82,21 @@ public class CommitSplitter
 
             if (preview)
             {
-                Console.WriteLine($"[preview] {finalMessage}\n");
+                Out.Info($"[preview] {finalMessage}\n");
             }
             else
             {
                 var edited = PromptEditor.Edit("Commit message (enter to accept): ", finalMessage);
                 if (edited is null)
                 {
-                    Console.WriteLine("Skipped.");
+                    Out.Muted("Skipped.");
                     foreach (var file in selectedFiles)
                         remainingFiles.Remove(file);
                     continue;
                 }
                 _git.Commit(edited);
                 Kommit.Commands.UndoCommand.RecordCommand("commit");
-                Console.WriteLine(edited);
+                Out.Info(edited);
                 commitCount++;
             }
 
